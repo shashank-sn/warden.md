@@ -14,7 +14,7 @@ short version: pick an issue, open a pr against `initial`, keep it small, make t
 - one issue per pr where possible. small and single-purpose beats big and clever.
 - run lint, typecheck, and tests before pushing. ci runs the same commands.
 - no credentials, tokens, or real account data in tests, fixtures, or logs. ever.
-- found a security problem? don't open a public issue. see [security.md](../SECURITY.md).
+- found a security problem? don't open a public issue. see [security.md](./SECURITY.md).
 
 ## style
 
