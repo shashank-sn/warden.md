@@ -19,17 +19,26 @@ three parts, one flow:
 ## the path
 
 ```mermaid
-graph LR
-    a[agent] -- auth.md discovery --> s[service<br/>workers + d1]
-    a -- propose action --> b[broker]
-    b -- approval --> u[human]
-    u -- yes --> b
-    b -- one-use credential --> a
-    a -- single call --> r[resource]
-    r -- completion --> b
-    b -- revoke + evidence --> s
-    c[check] -. conformance .-> s
+sequenceDiagram
+    autonumber
+    actor you
+    participant broker
+    participant agent
+    participant service as service (workers + d1)
+    participant resource
+
+    agent->>service: discover auth.md, register
+    agent->>broker: propose an exact action
+    broker->>you: ask for approval
+    you-->>broker: yes, once
+    broker-->>agent: one-use credential
+    agent->>resource: single call
+    resource-->>broker: consumed
+    agent->>broker: done
+    broker->>service: revoke + evidence
 ```
+
+the credential is worth exactly one call. `done` revokes whatever is left, and the broker keeps the evidence. `check` is the outside view: it verifies your auth.md and metadata before any agent shows up.
 
 ## principles
 
