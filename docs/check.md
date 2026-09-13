@@ -28,15 +28,15 @@ pnpm --filter @warden/cli exec authmd check https://api.example.com --probe
 The root composite action downloads an exact, published `@warden/cli` version with `npx`. It
 does not require a package-manager install in the consumer repository, request secrets, or
 require write permissions. The runner needs Node.js 20 or newer with npm. The version-release
-step synchronizes the action's default with the matching CLI package version, so each
-`v<version>` action release pins that exact published package. A caller may supply another exact
-published version. The check is read-only: it passes `--probe` only when the caller explicitly
-sets the opt-in input to `true`. Internally it runs
+step synchronizes the action's default with the planned CLI package version in its Version Packages
+PR. A caller may supply another exact published version. The check is read-only: it passes
+`--probe` only when the caller explicitly sets the opt-in input to `true`. Internally it runs
 `npx --yes --package @warden/cli@<cli-version> -- authmd check …`.
 
-`v0.1.0` becomes usable only after the release workflow publishes `@warden/cli@0.1.0` and creates
-that tag. This source branch has no published package or action tag yet, so it must not be used as
-evidence of a live consumer installation.
+`v0.1.0` becomes usable only after a separately authorized npm publish creates
+`@warden/cli@0.1.0` and a matching action tag. The version-PR workflow does neither. This source
+branch has no published package or action tag yet, so it must not be used as evidence of a live
+consumer installation.
 
 ```yaml
 name: Check deployed auth.md

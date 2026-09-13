@@ -8,4 +8,4 @@
 - [completion-scoped grants](./spec/completion-scoped-grants.md): draft v0 broker protocol.
 - [broker policy](./broker-policy.md): declarative allow, approval, and block rules.
 - [security review](./security/threat-model.md): broker threat model and negative-test matrix.
-- [releasing](./releasing.md): Changesets, trusted publishing, and verification.
+- [releasing](./releasing.md): Changesets, version PRs, and release verification.

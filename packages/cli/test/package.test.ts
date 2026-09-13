@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { CLI_VERSION } from "../src/cli.js";
 
 describe("published CLI package metadata", () => {
-  it("declares the canonical repository needed for npm trusted publishing", async () => {
+  it("declares the canonical repository", async () => {
     const packageJson = JSON.parse(
       await readFile(new URL("../package.json", import.meta.url), "utf8"),
     ) as { repository?: { type?: string; url?: string } };

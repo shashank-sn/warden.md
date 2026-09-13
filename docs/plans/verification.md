@@ -19,7 +19,7 @@ rule, or outside security review.
 ## Deliberately not asserted
 
 - GitHub branch-protection enforcement against a real pull request.
-- npm trusted publishing, provenance, generated release/tag creation, or external action-consumer
+- npm publication or provenance, generated release/tag creation, or external action-consumer
   installation.
 - Cloudflare account deployment and live D1/Durable Object behavior.
 - An outside-core security reviewer signature.
