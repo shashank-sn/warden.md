@@ -18,7 +18,7 @@ Scope: close the contract of issues #1 through #20 in one cohesive reference imp
 
 - Add a pnpm workspace with strict, NodeNext TypeScript configuration and package-local builds.
 - Use Biome as the single formatter/linter and Vitest as the shared test runner.
-- Add CI for `lint`, `typecheck`, `test`, and `build`; add Changesets release automation with npm provenance and a release runbook.
+- Add CI for `lint`, `typecheck`, `test`, and `build`; add Changesets version-PR automation and a release runbook that keeps npm publication separate.
 - Keep generated output, local Worker state, and secrets out of version control.
 
 ### U2 — conformance CLI and action (#4–#8)

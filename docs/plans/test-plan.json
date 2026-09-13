@@ -16,7 +16,7 @@
     {
       "id": "I3",
       "acceptance_examples": [
-        "A changeset release path uses trusted npm provenance without a repository npm token."
+        "A Changesets workflow opens or updates a Version Packages PR without requesting npm publishing credentials."
       ]
     },
     {
@@ -179,7 +179,7 @@
       "requirement_ids": ["I2", "I3", "I15"],
       "status": "NOT_RUN",
       "owner": "external service owners",
-      "reason": "GitHub branch protection, npm trusted publishing and consumer installation, and a live Cloudflare deployment require external authority or credentials. They are not represented as local passes.",
+      "reason": "GitHub branch protection, npm publication and consumer installation, and a live Cloudflare deployment require external authority or credentials. They are not represented as local passes.",
       "context_source": "requirements"
     },
     {
