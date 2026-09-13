@@ -1,0 +1,20 @@
+[
+  {
+    "url": "https://service.test/auth.md",
+    "status": 200,
+    "durationMs": 4,
+    "contentType": "text/markdown"
+  },
+  {
+    "url": "https://service.test/.well-known/oauth-protected-resource",
+    "status": 200,
+    "durationMs": 4,
+    "contentType": "application/json"
+  },
+  {
+    "url": "https://auth.service.test/.well-known/oauth-authorization-server",
+    "status": 200,
+    "durationMs": 4,
+    "contentType": "application/json"
+  }
+]

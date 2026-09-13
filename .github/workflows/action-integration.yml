@@ -1,0 +1,61 @@
+name: action integration
+
+on:
+  pull_request:
+  push:
+    branches: [initial]
+
+permissions:
+  contents: read
+
+jobs:
+  local-fixtures:
+    name: action against local fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @warden/cli build
+      - run: chmod +x action/test/bin/npx && echo "$GITHUB_WORKSPACE/action/test/bin" >> "$GITHUB_PATH"
+      - id: fixture
+        name: start HTTPS fixture services
+        run: |
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=127.0.0.1" -keyout "$RUNNER_TEMP/warden-fixture-key.pem" -out "$RUNNER_TEMP/warden-fixture-cert.pem"
+          WARDEN_FIXTURE_KEY="$RUNNER_TEMP/warden-fixture-key.pem" WARDEN_FIXTURE_CERT="$RUNNER_TEMP/warden-fixture-cert.pem" WARDEN_FIXTURE_OUTPUT="$RUNNER_TEMP/warden-fixture-url" node action/test/fixture-server.mjs &
+          echo "WARDEN_FIXTURE_PID=$!" >> "$GITHUB_ENV"
+          for attempt in {1..50}; do
+            test -s "$RUNNER_TEMP/warden-fixture-url" && break
+            sleep 0.1
+          done
+          test -s "$RUNNER_TEMP/warden-fixture-url"
+          echo "url=$(cat "$RUNNER_TEMP/warden-fixture-url")" >> "$GITHUB_OUTPUT"
+      - name: conformant auth.md
+        uses: ./
+        env:
+          NODE_TLS_REJECT_UNAUTHORIZED: "0"
+        with:
+          url: ${{ steps.fixture.outputs.url }}/valid
+          fail-on: error
+          json-output-path: .warden/action-valid.json
+      - id: malformed
+        name: malformed auth.md
+        continue-on-error: true
+        uses: ./
+        env:
+          NODE_TLS_REJECT_UNAUTHORIZED: "0"
+        with:
+          url: ${{ steps.fixture.outputs.url }}/broken
+          cli-version: "0.1.0"
+          fail-on: error
+          json-output-path: .warden/action-invalid.json
+      - if: steps.malformed.outcome != 'failure'
+        run: exit 1
+      - if: always()
+        run: kill "$WARDEN_FIXTURE_PID" || true

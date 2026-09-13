@@ -6,6 +6,17 @@ dist/
 .env.*
 *.log
 .DS_Store
+node_modules/
+dist/
+coverage/
+.warden/
+.wrangler/
+.dev.vars
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+*.log
 coverage/
 .turbo/
 *.tsbuildinfo

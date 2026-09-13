@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "subject": "https://service.test/",
+  "findings": [
+    {
+      "ruleId": "FETCH_HTTP_STATUS",
+      "severity": "error",
+      "message": "Document returned HTTP 404.",
+      "location": {
+        "document": "https://service.test/auth.md"
+      },
+      "help": "Serve a public HTTPS document with the expected status and content type.",
+      "sourceRuleIds": ["FETCH_HTTP_STATUS"]
+    }
+  ],
+  "summary": {
+    "errorCount": 1,
+    "warningCount": 0,
+    "infoCount": 0
+  }
+}

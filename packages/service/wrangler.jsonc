@@ -1,0 +1,40 @@
+{
+  "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
+  "name": "warden-auth-md",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-13",
+  "workers_dev": true,
+  "observability": {
+    "enabled": false
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "warden-auth-md",
+      "database_id": "replace-with-d1-database-id",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CLAIM_CEREMONY",
+        "class_name": "ClaimCeremonyDurableObject"
+      },
+      {
+        "name": "EVENT_DELIVERY",
+        "class_name": "EventDeliveryDurableObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["ClaimCeremonyDurableObject"]
+    },
+    {
+      "tag": "v2",
+      "new_classes": ["EventDeliveryDurableObject"]
+    }
+  ]
+}

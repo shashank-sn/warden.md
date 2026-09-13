@@ -1,0 +1,3 @@
+* text=auto eol=lf
+*.ts text diff=typescript
+*.md text diff=markdown

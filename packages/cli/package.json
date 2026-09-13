@@ -1,0 +1,36 @@
+{
+  "name": "@warden/cli",
+  "version": "0.0.0",
+  "description": "Read-only auth.md conformance checks",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shashank-sn/warden.md.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shashank-sn/warden.md/issues"
+  },
+  "homepage": "https://github.com/shashank-sn/warden.md#readme",
+  "type": "module",
+  "bin": {
+    "authmd": "./dist/index.js"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./check": "./dist/check.js",
+    "./model": "./dist/model.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "mdast-util-from-markdown": "^2.0.3"
+  }
+}
