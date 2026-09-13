@@ -1,0 +1,248 @@
+{
+  "schema_version": "1.0.0",
+  "requirements": [
+    {
+      "id": "I1",
+      "acceptance_examples": [
+        "A fresh checkout installs a strict three-package workspace and passes root gates."
+      ]
+    },
+    {
+      "id": "I2",
+      "acceptance_examples": [
+        "CI runs lint, typecheck, test, and build on pull requests and initial pushes."
+      ]
+    },
+    {
+      "id": "I3",
+      "acceptance_examples": [
+        "A changeset release path uses trusted npm provenance without a repository npm token."
+      ]
+    },
+    {
+      "id": "I4",
+      "acceptance_examples": [
+        "The built authmd CLI honors documented flags, reporters, and exit codes."
+      ]
+    },
+    {
+      "id": "I5",
+      "acceptance_examples": [
+        "A valid auth.md passes and malformed documents produce stable actionable findings."
+      ]
+    },
+    {
+      "id": "I6",
+      "acceptance_examples": [
+        "Conformant discovery metadata passes and inconsistent metadata reports cited paths."
+      ]
+    },
+    {
+      "id": "I7",
+      "acceptance_examples": [
+        "A read-only check produces deterministic reports and opt-in probe traces."
+      ]
+    },
+    {
+      "id": "I8",
+      "acceptance_examples": [
+        "The composite action consumes a pinned CLI and publishes report outputs and summary."
+      ]
+    },
+    {
+      "id": "I9",
+      "acceptance_examples": [
+        "Service discovery endpoints and typed persistence surface valid metadata."
+      ]
+    },
+    {
+      "id": "I10",
+      "acceptance_examples": [
+        "Anonymous, service-auth, and assertion identities receive stable safe responses."
+      ]
+    },
+    {
+      "id": "I11",
+      "acceptance_examples": [
+        "Claim state transitions enforce code, polling, rate limit, and expiry rules."
+      ]
+    },
+    {
+      "id": "I12",
+      "acceptance_examples": [
+        "JWKS, signed assertions, and replay checks reject unsafe JOSE inputs."
+      ]
+    },
+    {
+      "id": "I13",
+      "acceptance_examples": ["Token exchange narrows scope and resource target with OAuth errors."]
+    },
+    {
+      "id": "I14",
+      "acceptance_examples": [
+        "Revocation is idempotent and event delivery is retryable without secret logs."
+      ]
+    },
+    {
+      "id": "I15",
+      "acceptance_examples": [
+        "Local service deployment configuration and the demo flow are reproducible."
+      ]
+    },
+    {
+      "id": "I16",
+      "acceptance_examples": [
+        "The completion-grant spec defines fields, transitions, errors, and a worked flow."
+      ]
+    },
+    {
+      "id": "I17",
+      "acceptance_examples": [
+        "The broker atomically downscopes, binds DPoP, and allows exactly one consume."
+      ]
+    },
+    {
+      "id": "I18",
+      "acceptance_examples": [
+        "Completion and TTL finalization are idempotent with policy and evidence."
+      ]
+    },
+    {
+      "id": "I19",
+      "acceptance_examples": [
+        "SDK and middleware complete safely and reject invalid protected calls."
+      ]
+    },
+    {
+      "id": "I20",
+      "acceptance_examples": ["The threat model maps high-severity risks to negative evidence."]
+    }
+  ],
+  "tracks": [
+    {
+      "kind": "unit",
+      "requirement_ids": [
+        "I1",
+        "I2",
+        "I3",
+        "I4",
+        "I5",
+        "I6",
+        "I7",
+        "I8",
+        "I9",
+        "I10",
+        "I11",
+        "I12",
+        "I13",
+        "I14",
+        "I15",
+        "I16",
+        "I17",
+        "I18",
+        "I19",
+        "I20"
+      ],
+      "status": "PASS",
+      "owner": "implementation track owners",
+      "evidence": "docs/plans/verification.md",
+      "context_source": "requirements"
+    },
+    {
+      "kind": "acceptance",
+      "requirement_ids": [
+        "I1",
+        "I4",
+        "I5",
+        "I6",
+        "I7",
+        "I8",
+        "I9",
+        "I10",
+        "I11",
+        "I12",
+        "I13",
+        "I14",
+        "I16",
+        "I17",
+        "I18",
+        "I19",
+        "I20"
+      ],
+      "status": "PASS",
+      "owner": "independent integration review",
+      "evidence": "docs/plans/verification.md",
+      "context_source": "requirements"
+    },
+    {
+      "kind": "acceptance",
+      "requirement_ids": ["I2", "I3", "I15"],
+      "status": "NOT_RUN",
+      "owner": "external service owners",
+      "reason": "GitHub branch protection, npm trusted publishing and consumer installation, and a live Cloudflare deployment require external authority or credentials. They are not represented as local passes.",
+      "context_source": "requirements"
+    },
+    {
+      "kind": "integration",
+      "requirement_ids": [
+        "I1",
+        "I4",
+        "I5",
+        "I6",
+        "I7",
+        "I8",
+        "I9",
+        "I10",
+        "I11",
+        "I12",
+        "I13",
+        "I14",
+        "I16",
+        "I17",
+        "I18",
+        "I19",
+        "I20"
+      ],
+      "status": "PASS",
+      "owner": "final integrating session",
+      "evidence": "docs/plans/verification.md",
+      "context_source": "requirements"
+    },
+    {
+      "kind": "integration",
+      "requirement_ids": ["I2", "I3", "I15"],
+      "status": "NOT_RUN",
+      "owner": "external service owners",
+      "reason": "No real GitHub policy, npm publication, or Cloudflare deployment is available in this local reference validation.",
+      "context_source": "requirements"
+    },
+    {
+      "kind": "ui-qa",
+      "requirement_ids": [
+        "I1",
+        "I2",
+        "I3",
+        "I4",
+        "I5",
+        "I6",
+        "I7",
+        "I8",
+        "I9",
+        "I10",
+        "I11",
+        "I12",
+        "I13",
+        "I14",
+        "I15",
+        "I16",
+        "I17",
+        "I18",
+        "I19",
+        "I20"
+      ],
+      "status": "INAPPLICABLE",
+      "reason": "This v0 reference has programmatic APIs, a CLI, and a composite action but no graphical interface; command/action rendering is exercised by acceptance tests.",
+      "context_source": "requirements"
+    }
+  ]
+}

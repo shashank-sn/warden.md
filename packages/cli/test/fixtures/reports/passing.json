@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "subject": "https://service.test/",
+  "findings": [],
+  "summary": {
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0
+  }
+}

@@ -1,0 +1,24 @@
+#!/usr/bin/env node
+
+import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
+
+const separator = process.argv.indexOf("--");
+if (separator === -1) {
+  process.stderr.write("test npx wrapper requires an argument separator\n");
+  process.exitCode = 2;
+} else {
+  const workspace = process.env.GITHUB_WORKSPACE ?? process.cwd();
+  const entrypoint = resolve(workspace, "packages/cli/dist/index.js");
+  const command = process.argv[separator + 1];
+  if (command !== "authmd") {
+    process.stderr.write("test npx wrapper only supports the authmd binary\n");
+    process.exitCode = 2;
+  } else {
+    const result = spawnSync(process.execPath, [entrypoint, ...process.argv.slice(separator + 2)], {
+      cwd: process.cwd(),
+      stdio: "inherit",
+    });
+    process.exitCode = typeof result.status === "number" ? result.status : 1;
+  }
+}

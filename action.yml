@@ -1,0 +1,71 @@
+name: Warden conformance check
+description: Run the published Warden CLI against a deployed service and publish its conformance report.
+
+inputs:
+  url:
+    description: "Type: string. Required HTTPS URL to check."
+    required: true
+  fail-on:
+    description: "Type: string enum (error, warning, never). Lowest finding severity that fails the action."
+    required: false
+    default: error
+  probe:
+    description: "Type: boolean string (true or false). Enables the opt-in, read-only discovery probe."
+    required: false
+    default: "false"
+  json-output-path:
+    description: "Type: string path. JSON report path, relative to working-directory unless absolute. It is overwritten."
+    required: false
+    default: .warden/conformance.json
+  cli-version:
+    description: "Type: exact npm version string. Pinned version of the published @warden/cli package to run. Defaults to the action release's matching CLI version."
+    required: false
+    default: "0.1.0" # warden-cli-version
+  working-directory:
+    description: "Type: string path. Directory from which to run the CLI and resolve a relative report path."
+    required: false
+    default: .
+
+outputs:
+  result:
+    description: "Type: string enum (success or failure). CLI result after applying fail-on; a missing report is failure."
+    value: ${{ steps.report.outputs.result }}
+  error-count:
+    description: "Type: integer string. Number of error findings in the JSON report."
+    value: ${{ steps.report.outputs.error-count }}
+  warning-count:
+    description: "Type: integer string. Number of warning findings in the JSON report."
+    value: ${{ steps.report.outputs.warning-count }}
+  report-path:
+    description: "Type: absolute path string. Location where the action expected the JSON report."
+    value: ${{ steps.report.outputs.report-path }}
+
+runs:
+  using: composite
+  steps:
+    - id: prepare
+      name: Prepare Warden conformance check
+      shell: bash
+      env:
+        WARDEN_INPUT_URL: ${{ inputs.url }}
+        WARDEN_INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        WARDEN_INPUT_PROBE: ${{ inputs.probe }}
+        WARDEN_INPUT_JSON_OUTPUT_PATH: ${{ inputs.json-output-path }}
+        WARDEN_INPUT_CLI_VERSION: ${{ inputs.cli-version }}
+        WARDEN_INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+      run: node "${{ github.action_path }}/action/runner.mjs" prepare
+    - id: check
+      name: Run Warden conformance check
+      continue-on-error: true
+      shell: bash
+      run: node "${{ github.action_path }}/action/runner.mjs" check
+    - id: report
+      name: Publish Warden conformance report
+      if: always()
+      shell: bash
+      run: node "${{ github.action_path }}/action/runner.mjs" report
+    - id: finish
+      name: Finish Warden conformance check
+      if: always()
+      shell: bash
+      run: node "${{ github.action_path }}/action/runner.mjs" finish

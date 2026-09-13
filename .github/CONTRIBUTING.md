@@ -22,6 +22,14 @@ short version: pick an issue, open a pr against `initial`, keep it small, make t
 - write commit messages that explain why, not just what.
 - comments are for the non-obvious. the code should explain itself otherwise.
 
+## adding a package
+
+1. add `packages/<name>/package.json` and `tsconfig.json`, extending the root strict config.
+2. expose only the package public API through `src/index.ts`; do not import another package's internals.
+3. add behavior-level tests under `packages/<name>/test/` and a package readme with setup and failure modes.
+4. run `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` from the repository root.
+5. use a changeset for a user-visible published CLI change.
+
 ## license
 
 mit. by contributing, you agree your work ships under the same license.
