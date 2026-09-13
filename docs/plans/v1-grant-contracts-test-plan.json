@@ -1,0 +1,363 @@
+{
+  "schema_version": "1.0.0",
+  "status": "PLANNED",
+  "scope": "v1 completion-scoped grant design contracts; no runtime conformance result",
+  "requirements": [
+    {
+      "id": "V1-22",
+      "issue": 22,
+      "status": "SPECIFIED_NOT_IMPLEMENTED",
+      "spec": "docs/spec/task-graphs.md"
+    },
+    {
+      "id": "V1-23",
+      "issue": 23,
+      "status": "SPECIFIED_NOT_IMPLEMENTED",
+      "spec": "docs/spec/cross-resource-coordination.md"
+    },
+    {
+      "id": "V1-24",
+      "issue": 24,
+      "status": "SPECIFIED_NOT_IMPLEMENTED",
+      "spec": "docs/spec/durable-completion-queues.md"
+    },
+    {
+      "id": "V1-25",
+      "issue": 25,
+      "status": "SPECIFIED_NOT_IMPLEMENTED",
+      "spec": "docs/spec/broker-sdk-wire-v1.md"
+    },
+    {
+      "id": "V1-26",
+      "issue": 26,
+      "status": "SPECIFIED_NOT_IMPLEMENTED",
+      "spec": "docs/spec/bounded-reuse-standing-grants.md"
+    }
+  ],
+  "cases": [
+    {
+      "id": "V1-GRAPH-01",
+      "requirement_id": "V1-22",
+      "scenario": "Reject empty, missing, cyclic, or otherwise invalid graph definitions.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-02",
+      "requirement_id": "V1-22",
+      "scenario": "Block an exchange before every dependency succeeds.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-03",
+      "requirement_id": "V1-22",
+      "scenario": "Reject a changed node definition under the same graph idempotency key.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-04",
+      "requirement_id": "V1-22",
+      "scenario": "Reject graph-wide credential, scope, audience, or DPoP binding.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-05",
+      "requirement_id": "V1-22",
+      "scenario": "Reject assertion reuse or a substituted node action, audience, scope, or JKT.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-06",
+      "requirement_id": "V1-22",
+      "scenario": "Reject batch approval or an approval view missing the resolved node binding.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-07",
+      "requirement_id": "V1-22",
+      "scenario": "Race cancellation with approval and consume; allow exactly one coordinator winner.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-08",
+      "requirement_id": "V1-22",
+      "scenario": "Block downstream work after partial failure or expiry; require a new graph to retry.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-09",
+      "requirement_id": "V1-22",
+      "scenario": "Reject missing or forged terminal evidence and redact secret-bearing evidence.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-10",
+      "requirement_id": "V1-22",
+      "scenario": "Reject mixed-audience graph sequencing; require the cross-resource coordination profile.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-11",
+      "requirement_id": "V1-22",
+      "scenario": "Reject approval of a node absent from the immutable graph; do not infer a node or mint a grant.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-12",
+      "requirement_id": "V1-22",
+      "scenario": "Bind an exchange to one approved graph node and reject substituted node action, audience, scope, JKT, or reuse bound.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-GRAPH-13",
+      "requirement_id": "V1-22",
+      "scenario": "Reject graph selector composition with coordination, standing-profile, or queue selectors before issuing any grant or receipt.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-COORD-01",
+      "requirement_id": "V1-23",
+      "scenario": "Reject wildcard, alias, duplicate, or dynamically added resource legs.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-COORD-02",
+      "requirement_id": "V1-23",
+      "scenario": "Reject implicit scope inheritance or a resource leg outside its trusted limit.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-COORD-03",
+      "requirement_id": "V1-23",
+      "scenario": "Require an immutable full-plan approval digest and reject mutation after display.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-COORD-04",
+      "requirement_id": "V1-23",
+      "scenario": "Reject a successor consume before a trusted predecessor success outcome.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-COORD-05",
+      "requirement_id": "V1-23",
+      "scenario": "Deduplicate parallel consumes and resource outcomes.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-COORD-06",
+      "requirement_id": "V1-23",
+      "scenario": "Reject forged or replayed resource outcome receipts.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-COORD-07",
+      "requirement_id": "V1-23",
+      "scenario": "Cancel all unconsumed legs after failure, expiry, or revocation and preserve partial evidence.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-COORD-08",
+      "requirement_id": "V1-23",
+      "scenario": "Keep a created or approved coordination parent non-authorizing and capability-free.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-COORD-09",
+      "requirement_id": "V1-23",
+      "scenario": "Reject an unknown coordination parent without inferring a plan or minting a child.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-COORD-10",
+      "requirement_id": "V1-23",
+      "scenario": "Mint exactly one bound one-use child only for the ready ordinal, and cap its expiry at the earlier parent and v0 limits.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-01",
+      "requirement_id": "V1-24",
+      "scenario": "Reject missing, wrong-audience, wrong-JKT, or replayed completion receipts.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-02",
+      "requirement_id": "V1-24",
+      "scenario": "Reject malformed terminal envelopes before durable enqueue.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-03",
+      "requirement_id": "V1-24",
+      "scenario": "Reject queue evidence or observability that contains a credential, proof, assertion, or raw result.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-04",
+      "requirement_id": "V1-24",
+      "scenario": "Replay an identical dedupe key and payload as one item; reject a changed payload.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-05",
+      "requirement_id": "V1-24",
+      "scenario": "Recover a retry after coordinator restart without changing immutable payload data.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-06",
+      "requirement_id": "V1-24",
+      "scenario": "Bound retry attempts and retention; expose exhausted work as a dead-letter item.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-07",
+      "requirement_id": "V1-24",
+      "scenario": "Record late delivery without reopening an expired or revoked grant or duplicating fan-out.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-08",
+      "requirement_id": "V1-24",
+      "scenario": "Reject an expired completion receipt before delivery or evidence mutation.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-09",
+      "requirement_id": "V1-24",
+      "scenario": "Keep an unknown local queue item local and never send a broker delivery.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-10",
+      "requirement_id": "V1-24",
+      "scenario": "Reject a requeue of broker-accepted, expired, or cancelled local work; only a valid dead letter can requeue.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-11",
+      "requirement_id": "V1-24",
+      "scenario": "Reject an invalid-signature completion receipt before any evidence mutation.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-12",
+      "requirement_id": "V1-24",
+      "scenario": "Issue a queue receipt only for an opt-in with a distinct completion DPoP JKT.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-13",
+      "requirement_id": "V1-24",
+      "scenario": "Dead-letter after restart without the original protected completion key; never substitute a key or send to the broker.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-QUEUE-14",
+      "requirement_id": "V1-24",
+      "scenario": "Reject a queue selector combined with a coordination or standing-profile selector before issuing a queue receipt or grant.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-WIRE-01",
+      "requirement_id": "V1-25",
+      "scenario": "Validate allow, approval-pending, and blocked exchange envelopes.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-WIRE-02",
+      "requirement_id": "V1-25",
+      "scenario": "Replay a canonical request and reject an idempotency-key collision with changed input.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-WIRE-03",
+      "requirement_id": "V1-25",
+      "scenario": "Validate trusted approval retry and stable result serialization.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-WIRE-04",
+      "requirement_id": "V1-25",
+      "scenario": "Validate valid one-use consume and all stable error/status mappings.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-WIRE-05",
+      "requirement_id": "V1-25",
+      "scenario": "Reject DPoP replay, key mismatch, action mismatch, and token-hash mismatch.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-WIRE-06",
+      "requirement_id": "V1-25",
+      "scenario": "Exercise DPoP clock-skew and grant-expiry boundaries with a deterministic clock.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-WIRE-07",
+      "requirement_id": "V1-25",
+      "scenario": "Verify completion is idempotent and transient availability is the only retryable stable code.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-WIRE-08",
+      "requirement_id": "V1-25",
+      "scenario": "Verify public JWK output and fixtures have no private key material.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-REUSE-01",
+      "requirement_id": "V1-26",
+      "scenario": "Reject reusable profile fields on the retained v0 POST /exchange proposal surface.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-REUSE-02",
+      "requirement_id": "V1-26",
+      "scenario": "Reject reusable authority unless an explicit versioned profile policy approves it.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-REUSE-03",
+      "requirement_id": "V1-26",
+      "scenario": "Race consumes at the final use and allow exactly the configured number of successes.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-REUSE-04",
+      "requirement_id": "V1-26",
+      "scenario": "Reject action, audience, scope, JKT, proof-token, TTL, and counter substitution.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-REUSE-05",
+      "requirement_id": "V1-26",
+      "scenario": "Reject a replayed proof after restart or proof use with another credential.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-REUSE-06",
+      "requirement_id": "V1-26",
+      "scenario": "Require explicit bounded renewal and preserve the resolved profile envelope.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-REUSE-07",
+      "requirement_id": "V1-26",
+      "scenario": "Preserve terminal redacted evidence after standing-profile revocation or expiry.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-REUSE-08",
+      "requirement_id": "V1-26",
+      "scenario": "Reject reuse combined with cross-resource coordination.",
+      "status": "PLANNED"
+    },
+    {
+      "id": "V1-REUSE-09",
+      "requirement_id": "V1-26",
+      "scenario": "Downgrade only by issuing a fresh restricted one-use grant; never mutate a standing grant in place.",
+      "status": "PLANNED"
+    }
+  ]
+}
