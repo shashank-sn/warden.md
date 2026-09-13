@@ -26,6 +26,7 @@ for the deterministic test suite.
 - [conformance CLI and Action](docs/check.md)
 - [service deployment](docs/deploy.md)
 - [completion-scoped grants draft](docs/spec/completion-scoped-grants.md)
+- [v1 grant amendments](docs/plans/v1-grant-contracts.md)
 - [broker threat model](docs/security/threat-model.md)
 - [release process](docs/releasing.md)
 

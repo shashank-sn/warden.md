@@ -51,6 +51,12 @@ the credential is worth exactly one call. `done` revokes whatever is left, and t
 
 pre-alpha, building in public. nothing here is production ready yet. the backlog is public and written for humans to pick up, and the roadmap tracks where each piece stands.
 
+## v1 contract amendments
+
+The [v1 grant-contract plan](./plans/v1-grant-contracts.md) specifies task graphs, cross-resource
+coordination, durable completion queues, portable SDK behavior, and bounded reuse. Those are planned
+contracts and fixtures; the current broker runtime remains v0.
+
 ## repo layout
 
 ```

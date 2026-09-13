@@ -1,0 +1,5450 @@
+{
+  "schema_version": "1.1.0",
+  "status": "PLANNED",
+  "wire_spec": "docs/spec/broker-sdk-wire-v1.md",
+  "fixture_contract": {
+    "request": "exact public JSON request body with no credentials, proofs, or harness controls",
+    "headers": "safe literal protocol headers; harness injects authenticated credentials and fresh DPoP",
+    "harness_preconditions": "non-wire setup, deterministic timing, prior state, and ephemeral key bindings",
+    "expected": "status plus a frozen error code only for an error outcome",
+    "assertions": "typed response or durable-state observations with exactly one operator",
+    "covers": "exact planned test case IDs covered by the descriptor"
+  },
+  "requirement_ids": ["V1-22", "V1-23", "V1-24", "V1-25", "V1-26"],
+  "cases": [
+    {
+      "id": "WIRE-01",
+      "area": "exchange",
+      "scenario": "policy allows one exact one-use grant",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300
+      },
+      "expected": {
+        "status": 201
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-01"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.decision",
+          "equals": "allow"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "approved"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.use_limit",
+          "equals": 1
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "present": true
+        }
+      ],
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-01"]
+    },
+    {
+      "id": "WIRE-02",
+      "area": "exchange",
+      "scenario": "policy returns a pending approval without a capability",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300
+      },
+      "expected": {
+        "status": 202
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-02"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.decision",
+          "equals": "pending"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "proposed"
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        }
+      ],
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-01"]
+    },
+    {
+      "id": "WIRE-03",
+      "area": "idempotency",
+      "scenario": "exact exchange retry returns the original grant",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300
+      },
+      "expected": {
+        "status": 201
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-03"
+      },
+      "harness_preconditions": {
+        "retry": "exact"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.decision",
+          "equals": "allow"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.id",
+          "same_as": {
+            "target": "state",
+            "path": "$.original_response.grant.id"
+          }
+        }
+      ],
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-02"]
+    },
+    {
+      "id": "WIRE-04",
+      "area": "approval",
+      "scenario": "trusted approval returns one stable allowed envelope",
+      "method": "POST",
+      "path": "/v1/grants/grant-pending/approve",
+      "request": {},
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-04"
+      },
+      "harness_preconditions": {
+        "approval_identity_state": "trusted",
+        "retry": "exact"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.decision",
+          "equals": "allow"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "approved"
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.grant.id",
+          "same_as": {
+            "target": "state",
+            "path": "$.original_response.grant.id"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "same_as": {
+            "target": "state",
+            "path": "$.original_response.capability"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.grant.mint_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-03"]
+    },
+    {
+      "id": "WIRE-05",
+      "area": "consume",
+      "scenario": "resource adapter atomically consumes one exact action",
+      "method": "POST",
+      "path": "/v1/grants/grant-allow/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 200
+      },
+      "harness_preconditions": {
+        "binding_state": "valid"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "consumed"
+        }
+      ],
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-04"]
+    },
+    {
+      "id": "WIRE-06",
+      "area": "completion",
+      "scenario": "completion returns stable redacted evidence and final grant state",
+      "method": "POST",
+      "path": "/v1/grants/grant-allow/complete",
+      "request": {},
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-06"
+      },
+      "harness_preconditions": {
+        "binding_state": "valid",
+        "retry": "exact"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "revoked"
+        },
+        {
+          "target": "response",
+          "path": "$.evidence.id",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.grant.id",
+          "same_as": {
+            "target": "state",
+            "path": "$.original_response.grant.id"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.evidence.id",
+          "same_as": {
+            "target": "state",
+            "path": "$.original_response.evidence.id"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.evidence.mutation_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.grant.authority_revived",
+          "equals": false
+        }
+      ],
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-07"]
+    },
+    {
+      "id": "WIRE-07",
+      "area": "lookup",
+      "scenario": "authorized evidence lookup returns only the closed evidence view",
+      "method": "GET",
+      "path": "/v1/grants/grant-allow/evidence",
+      "request": {},
+      "expected": {
+        "status": 200
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.evidence.id",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.evidence.recorded_at",
+          "present": true
+        },
+        {
+          "target": "state",
+          "path": "$.evidence.credential",
+          "absent": true
+        }
+      ],
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-08"]
+    },
+    {
+      "id": "WIRE-08",
+      "area": "queue",
+      "scenario": "queue opt-in uses a distinct completion key and receives one opaque receipt",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "completion_queue": {
+          "dpop_jkt": "jkt-completion-a"
+        }
+      },
+      "expected": {
+        "status": 201
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-08"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.decision",
+          "equals": "allow"
+        },
+        {
+          "target": "response",
+          "path": "$.completion_queue.receipt",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.completion_queue.dpop_jkt",
+          "equals": "jkt-completion-a"
+        },
+        {
+          "target": "state",
+          "path": "$.queue.action_jkt_distinct_from_completion_jkt",
+          "equals": true
+        }
+      ],
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-12"]
+    },
+    {
+      "id": "WIRE-09",
+      "area": "queue",
+      "scenario": "broker durably accepts one queue event before asynchronous delivery",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/completion-queue",
+      "request": {
+        "completion_event_id": "event-accepted-a"
+      },
+      "expected": {
+        "status": 202
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-09"
+      },
+      "harness_preconditions": {
+        "receipt_state": "valid",
+        "completion_dpop_state": "valid"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.queue.state",
+          "equals": "accepted"
+        },
+        {
+          "target": "response",
+          "path": "$.queue.id",
+          "present": true
+        },
+        {
+          "target": "state",
+          "path": "$.queue.evidence_mutation_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.queue.item_count",
+          "equals": 1
+        }
+      ],
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-04"]
+    },
+    {
+      "id": "WIRE-10",
+      "area": "queue",
+      "scenario": "queue status reports a late terminal result without reviving authority",
+      "method": "GET",
+      "path": "/v1/grants/grant-expired/completion-queue/broker-queue-a",
+      "request": {},
+      "expected": {
+        "status": 200
+      },
+      "harness_preconditions": {
+        "broker_queue_state": "recorded_late"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.queue.state",
+          "equals": "recorded_late"
+        },
+        {
+          "target": "response",
+          "path": "$.queue.evidence_id",
+          "present": true
+        },
+        {
+          "target": "state",
+          "path": "$.grant.status",
+          "equals": "expired"
+        },
+        {
+          "target": "state",
+          "path": "$.grant.authority_revived",
+          "equals": false
+        }
+      ],
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-07"]
+    },
+    {
+      "id": "WIRE-11",
+      "area": "queue",
+      "scenario": "scheduler resumes a retry after restart with an immutable local payload",
+      "method": "LOCAL",
+      "path": "queue/scheduler-tick",
+      "request": {
+        "queue_id": "queue-restart-a"
+      },
+      "expected": {
+        "status": 200
+      },
+      "harness_preconditions": {
+        "coordinator_lifecycle": "restarted_before_next_attempt"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.state",
+          "equals": "broker_accepted"
+        },
+        {
+          "target": "state",
+          "path": "$.queue.retry_attempt_count",
+          "equals": 2
+        },
+        {
+          "target": "state",
+          "path": "$.queue.fresh_dpop_required",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.queue.payload_digest",
+          "same_as": {
+            "target": "state",
+            "path": "$.original_queue.payload_digest"
+          }
+        }
+      ],
+      "surface": "sdk_queue",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-05"]
+    },
+    {
+      "id": "WIRE-12",
+      "area": "queue",
+      "scenario": "scheduler stops at retry cap without another broker delivery",
+      "method": "LOCAL",
+      "path": "queue/scheduler-tick",
+      "request": {
+        "queue_id": "queue-cap-a"
+      },
+      "expected": {
+        "status": 200
+      },
+      "harness_preconditions": {
+        "retry_attempt_count": 3,
+        "retry_attempt_cap": 3
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.state",
+          "equals": "dead_letter"
+        },
+        {
+          "target": "state",
+          "path": "$.queue.dead_letter_reason",
+          "equals": "retry_cap_exhausted"
+        },
+        {
+          "target": "state",
+          "path": "$.queue.broker_delivery_count",
+          "equals": 0
+        }
+      ],
+      "surface": "sdk_queue",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-06"]
+    },
+    {
+      "id": "WIRE-13",
+      "area": "graph",
+      "scenario": "same-audience graph creation returns only closed graph metadata",
+      "method": "POST",
+      "path": "/v1/task-graphs",
+      "request": {
+        "nodes": [
+          {
+            "node_id": "node-a",
+            "depends_on": [],
+            "action": {
+              "method": "POST",
+              "path": "/payments/42",
+              "query": ""
+            },
+            "audience": "https://api.example.test",
+            "scope": ["payments:write"],
+            "dpop_jkt": "jkt-graph-a"
+          }
+        ],
+        "expires_at": "2030-01-01T00:00:00Z"
+      },
+      "expected": {
+        "status": 201
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-13"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.graph.state",
+          "equals": "active"
+        },
+        {
+          "target": "response",
+          "path": "$.graph.definition_hash",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].grant_id",
+          "equals": null
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].evidence_id",
+          "equals": null
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].use_limit",
+          "equals": 1
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].expires_at",
+          "equals": null
+        },
+        {
+          "target": "response",
+          "path": "$.graph.evidence_id",
+          "equals": null
+        },
+        {
+          "target": "response",
+          "path": "$.graph",
+          "keys_exactly": ["definition_hash", "evidence_id", "expires_at", "id", "nodes", "state"]
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0]",
+          "keys_exactly": [
+            "action",
+            "audience",
+            "depends_on",
+            "dpop_jkt",
+            "evidence_id",
+            "expires_at",
+            "grant_id",
+            "id",
+            "scope",
+            "state",
+            "use_limit"
+          ]
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-01"]
+    },
+    {
+      "id": "WIRE-14",
+      "area": "graph",
+      "scenario": "single-node approval returns a resolved closed node view",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-a/nodes/node-a/approve",
+      "request": {},
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-14"
+      },
+      "harness_preconditions": {
+        "approval_identity_state": "trusted",
+        "graph_deadline": "2029-12-31T23:59:00Z",
+        "v0_grant_expiry_cap": "2030-01-01T00:00:00Z"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.node.state",
+          "equals": "approved"
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].state",
+          "equals": "approved"
+        },
+        {
+          "target": "response",
+          "path": "$.node.action",
+          "equals": {
+            "method": "POST",
+            "path": "/payments/42",
+            "query": ""
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.node.audience",
+          "equals": "https://api.example.test"
+        },
+        {
+          "target": "response",
+          "path": "$.node.scope",
+          "equals": ["payments:write"]
+        },
+        {
+          "target": "response",
+          "path": "$.node.dpop_jkt",
+          "equals": "jkt-graph-a"
+        },
+        {
+          "target": "response",
+          "path": "$.node.use_limit",
+          "equals": 1
+        },
+        {
+          "target": "response",
+          "path": "$.node.expires_at",
+          "equals": "2029-12-31T23:59:00Z"
+        },
+        {
+          "target": "response",
+          "path": "$.graph.expires_at",
+          "equals": "2029-12-31T23:59:00Z"
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].action",
+          "same_as": {
+            "target": "response",
+            "path": "$.node.action"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].audience",
+          "same_as": {
+            "target": "response",
+            "path": "$.node.audience"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].scope",
+          "same_as": {
+            "target": "response",
+            "path": "$.node.scope"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].dpop_jkt",
+          "same_as": {
+            "target": "response",
+            "path": "$.node.dpop_jkt"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].use_limit",
+          "same_as": {
+            "target": "response",
+            "path": "$.node.use_limit"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].expires_at",
+          "same_as": {
+            "target": "response",
+            "path": "$.node.expires_at"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.node.grant_id",
+          "equals": null
+        },
+        {
+          "target": "response",
+          "path": "$.node.evidence_id",
+          "equals": null
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].grant_id",
+          "equals": null
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].evidence_id",
+          "equals": null
+        },
+        {
+          "target": "response",
+          "path": "$.graph.evidence_id",
+          "equals": null
+        },
+        {
+          "target": "response",
+          "path": "$.graph",
+          "keys_exactly": ["definition_hash", "evidence_id", "expires_at", "id", "nodes", "state"]
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0]",
+          "keys_exactly": [
+            "action",
+            "audience",
+            "depends_on",
+            "dpop_jkt",
+            "evidence_id",
+            "expires_at",
+            "grant_id",
+            "id",
+            "scope",
+            "state",
+            "use_limit"
+          ]
+        },
+        {
+          "target": "response",
+          "path": "$.node",
+          "keys_exactly": [
+            "action",
+            "audience",
+            "depends_on",
+            "dpop_jkt",
+            "evidence_id",
+            "expires_at",
+            "grant_id",
+            "id",
+            "scope",
+            "state",
+            "use_limit"
+          ]
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.node.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.node.credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.graph.batch_approved_node_count",
+          "equals": 1
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-06"]
+    },
+    {
+      "id": "WIRE-15",
+      "area": "graph",
+      "scenario": "trusted terminal event returns node and redacted evidence views",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-a/nodes/node-a/finalize",
+      "request": {
+        "event": "success",
+        "event_id": "event-graph-a"
+      },
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-15"
+      },
+      "harness_preconditions": {
+        "resource_identity_state": "trusted"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.node.state",
+          "equals": "succeeded"
+        },
+        {
+          "target": "response",
+          "path": "$.evidence.id",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.node.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.node.credential",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.evidence.credential",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.evidence.raw_result",
+          "absent": true
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-09"]
+    },
+    {
+      "id": "WIRE-16",
+      "area": "graph",
+      "scenario": "cancellation wins one graph coordinator race and reports closed evidence",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-race/cancel",
+      "request": {},
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-16"
+      },
+      "harness_preconditions": {
+        "cancellation_identity_state": "trusted",
+        "parallel_operations": ["cancel", "approve", "consume"],
+        "initial_node_state": "awaiting_approval"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.graph.state",
+          "equals": "cancelled"
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.graph.nodes[0].credential",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.graph.coordinator_winner_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.race.winner",
+          "equals": "cancel"
+        },
+        {
+          "target": "state",
+          "path": "$.graph.post_cancel_approval_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.graph.post_cancel_consume_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.graph.live_grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-07"]
+    },
+    {
+      "id": "WIRE-17",
+      "area": "coordination",
+      "scenario": "coordination creation records a non-authorizing full plan",
+      "method": "POST",
+      "path": "/v1/coordinations",
+      "request": {
+        "entries": [
+          {
+            "ordinal": 1,
+            "resource_id": "billing",
+            "action": {
+              "method": "POST",
+              "path": "/payments/42",
+              "query": ""
+            },
+            "audience": "https://api.example.test",
+            "scope": ["payments:write"],
+            "dpop_jkt": "jkt-coordination-a",
+            "completion_ttl_seconds": 300
+          },
+          {
+            "ordinal": 2,
+            "resource_id": "ledger",
+            "action": {
+              "method": "POST",
+              "path": "/entries/42",
+              "query": ""
+            },
+            "audience": "https://ledger.example.test",
+            "scope": ["ledger:write"],
+            "dpop_jkt": "jkt-coordination-b",
+            "completion_ttl_seconds": 300
+          }
+        ],
+        "expires_at": "2030-01-01T00:00:00Z"
+      },
+      "expected": {
+        "status": 201
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-17"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.coordination.state",
+          "equals": "planned"
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.plan_digest",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.id",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.expires_at",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].state",
+          "equals": "unreleased"
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].grant_id",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].state",
+          "equals": "unreleased"
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].grant_id",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination",
+          "keys_exactly": ["entries", "evidence_id", "expires_at", "id", "plan_digest", "state"]
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0]",
+          "keys_exactly": [
+            "action",
+            "audience",
+            "completion_ttl_seconds",
+            "dpop_jkt",
+            "ordinal",
+            "resource_id",
+            "scope",
+            "state"
+          ]
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1]",
+          "keys_exactly": [
+            "action",
+            "audience",
+            "completion_ttl_seconds",
+            "dpop_jkt",
+            "ordinal",
+            "resource_id",
+            "scope",
+            "state"
+          ]
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].credential",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.authorizes_resource",
+          "equals": false
+        }
+      ],
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-03", "V1-COORD-08"]
+    },
+    {
+      "id": "WIRE-18",
+      "area": "coordination",
+      "scenario": "full-plan approval releases only ordinal one",
+      "method": "POST",
+      "path": "/v1/coordinations/coordination-a/approve",
+      "request": {},
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-18"
+      },
+      "harness_preconditions": {
+        "approval_identity_state": "trusted"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination",
+          "keys_exactly": ["entries", "evidence_id", "expires_at", "id", "plan_digest", "state"]
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0]",
+          "keys_exactly": [
+            "action",
+            "audience",
+            "completion_ttl_seconds",
+            "dpop_jkt",
+            "ordinal",
+            "resource_id",
+            "scope",
+            "state"
+          ]
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1]",
+          "keys_exactly": [
+            "action",
+            "audience",
+            "completion_ttl_seconds",
+            "dpop_jkt",
+            "ordinal",
+            "resource_id",
+            "scope",
+            "state"
+          ]
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.state",
+          "equals": "approved"
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.plan_digest",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].state",
+          "equals": "ready"
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].grant_id",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].state",
+          "equals": "unreleased"
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].grant_id",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.approved_plan_digest",
+          "same_as": {
+            "target": "response",
+            "path": "$.coordination.plan_digest"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.ready_ordinal",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.entries[1].state",
+          "equals": "unreleased"
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.entries[1].grant_id",
+          "absent": true
+        }
+      ],
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-03", "V1-COORD-08"]
+    },
+    {
+      "id": "WIRE-19",
+      "area": "coordination",
+      "scenario": "terminal coordination finalization retains partial evidence",
+      "method": "POST",
+      "path": "/v1/coordinations/coordination-a/finalize",
+      "request": {
+        "event": "failure",
+        "entry_ordinal": 1
+      },
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-19"
+      },
+      "harness_preconditions": {
+        "resource_identity_state": "trusted",
+        "terminal_cause": "failure"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.coordination.state",
+          "equals": "finalized"
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination",
+          "keys_exactly": ["entries", "evidence_id", "expires_at", "id", "plan_digest", "state"]
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0]",
+          "keys_exactly": [
+            "action",
+            "audience",
+            "completion_ttl_seconds",
+            "dpop_jkt",
+            "ordinal",
+            "resource_id",
+            "scope",
+            "state"
+          ]
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1]",
+          "keys_exactly": [
+            "action",
+            "audience",
+            "completion_ttl_seconds",
+            "dpop_jkt",
+            "ordinal",
+            "resource_id",
+            "scope",
+            "state"
+          ]
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.evidence.id",
+          "present": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.partial_evidence_preserved",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.remaining_entries_disabled",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.unconsumed_child_grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-07"]
+    },
+    {
+      "id": "WIRE-20",
+      "area": "standing",
+      "scenario": "bounded reusable consume decrements only its profile ledger",
+      "method": "POST",
+      "path": "/v1/grants/grant-bounded/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 200
+      },
+      "harness_preconditions": {
+        "reuse_mode": "bounded_multi_use",
+        "remaining_uses_before": 2
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "approved"
+        },
+        {
+          "target": "state",
+          "path": "$.standing.remaining_successful_consumes",
+          "equals": 1
+        }
+      ],
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-03"]
+    },
+    {
+      "id": "WIRE-21",
+      "area": "standing",
+      "scenario": "allowed standing renewal returns a fresh bounded child grant",
+      "method": "POST",
+      "path": "/v1/grants/grant-standing/renew",
+      "request": {},
+      "expected": {
+        "status": 201
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-21"
+      },
+      "harness_preconditions": {
+        "renewal_policy": "explicit",
+        "reuse_mode": "standing",
+        "prior_segment_state": "terminal",
+        "profile_envelope": "fixed"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.decision",
+          "equals": "allow"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.id",
+          "not_same_as": {
+            "target": "state",
+            "path": "$.standing.prior_segment.grant.id"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.grant.action",
+          "same_as": {
+            "target": "state",
+            "path": "$.profile.action"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.grant.audience",
+          "same_as": {
+            "target": "state",
+            "path": "$.profile.audience"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.grant.scope",
+          "same_as": {
+            "target": "state",
+            "path": "$.profile.scope"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.grant.dpop_jkt",
+          "same_as": {
+            "target": "state",
+            "path": "$.profile.dpop_jkt"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.grant.use_limit",
+          "same_as": {
+            "target": "state",
+            "path": "$.profile.segment_max_successful_consumes"
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.grant.expires_at",
+          "same_as": {
+            "target": "state",
+            "path": "$.profile.next_segment_expires_at"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.standing.active_segment_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.standing.remaining_rotations",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.grant.expires_at_lte_absolute",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.standing.parent_credential_exposed",
+          "equals": false
+        }
+      ],
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-06"]
+    },
+    {
+      "id": "WIRE-22",
+      "area": "standing",
+      "scenario": "downgrade creates a fresh restricted one-use grant without mutating standing authority",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300
+      },
+      "expected": {
+        "status": 201
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-22"
+      },
+      "harness_preconditions": {
+        "downgrade_from": "standing",
+        "replacement_policy": "restricted_one_use"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.grant.use_limit",
+          "equals": 1
+        },
+        {
+          "target": "response",
+          "path": "$.grant.id",
+          "not_same_as": {
+            "target": "state",
+            "path": "$.standing.previous_grant.id"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.standing.in_place_mutation",
+          "equals": false
+        }
+      ],
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-09"]
+    },
+    {
+      "id": "WIRE-23",
+      "area": "jwks",
+      "scenario": "public key discovery exposes only public signing fields",
+      "method": "GET",
+      "path": "/.well-known/jwks.json",
+      "request": {},
+      "expected": {
+        "status": 200
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.keys[0].kty",
+          "equals": "EC"
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].crv",
+          "equals": "P-256"
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].x",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].y",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].kid",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].use",
+          "equals": "sig"
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].alg",
+          "equals": "ES256"
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0]",
+          "keys_exactly": ["alg", "crv", "kid", "kty", "use", "x", "y"]
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].d",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].p",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].q",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].dp",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].dq",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].qi",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.keys[0].k",
+          "absent": true
+        }
+      ],
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-08"]
+    },
+    {
+      "id": "WIRE-24",
+      "area": "validation",
+      "scenario": "invalid request rejects wildcard action proposal",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/*",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300
+      },
+      "expected": {
+        "status": 400,
+        "error": "invalid_request"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-24"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-04"]
+    },
+    {
+      "id": "WIRE-25",
+      "area": "authentication",
+      "scenario": "completion rejects missing credential context",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/complete",
+      "request": {},
+      "expected": {
+        "status": 401,
+        "error": "invalid_credential"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-25"
+      },
+      "harness_preconditions": {
+        "binding_state": "missing"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-04"]
+    },
+    {
+      "id": "WIRE-26",
+      "area": "dpop",
+      "scenario": "consume rejects a replayed DPoP proof independently of clock skew",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 401,
+        "error": "dpop_proof_invalid"
+      },
+      "harness_preconditions": {
+        "binding_state": "replayed"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant.consume_mutation_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-05"]
+    },
+    {
+      "id": "WIRE-27",
+      "area": "dpop",
+      "scenario": "consume rejects a proof from a different action key",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 401,
+        "error": "wrong_dpop_key"
+      },
+      "harness_preconditions": {
+        "binding_state": "different_key"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-05"]
+    },
+    {
+      "id": "WIRE-28",
+      "area": "time",
+      "scenario": "consume at exact grant expiry is rejected",
+      "method": "POST",
+      "path": "/v1/grants/grant-expired/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 401,
+        "error": "grant_expired"
+      },
+      "harness_preconditions": {
+        "broker_time_relation": "at_expiry"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-06"]
+    },
+    {
+      "id": "WIRE-29",
+      "area": "completion",
+      "scenario": "revoked grant cannot consume again",
+      "method": "POST",
+      "path": "/v1/grants/grant-revoked/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 401,
+        "error": "grant_revoked"
+      },
+      "harness_preconditions": {
+        "grant_state": "revoked"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-04"]
+    },
+    {
+      "id": "WIRE-30",
+      "area": "scope",
+      "scenario": "exchange cannot widen delegated scope",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:admin"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300
+      },
+      "expected": {
+        "status": 403,
+        "error": "scope_not_authorized"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-30"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-04"]
+    },
+    {
+      "id": "WIRE-31",
+      "area": "exchange",
+      "scenario": "policy blocks an unauthorized exchange",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300
+      },
+      "expected": {
+        "status": 403,
+        "error": "policy_blocked"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-31"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-01"]
+    },
+    {
+      "id": "WIRE-32",
+      "area": "approval",
+      "scenario": "untrusted approval identity fails closed",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/approve",
+      "request": {},
+      "expected": {
+        "status": 403,
+        "error": "approval_required"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-32"
+      },
+      "harness_preconditions": {
+        "approval_identity_state": "missing"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-03"]
+    },
+    {
+      "id": "WIRE-33",
+      "area": "revoke",
+      "scenario": "operator revocation requires trusted authority",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/revoke",
+      "request": {},
+      "expected": {
+        "status": 403,
+        "error": "operator_authorization_required"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-33"
+      },
+      "harness_preconditions": {
+        "operator_identity_state": "missing"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-04"]
+    },
+    {
+      "id": "WIRE-34",
+      "area": "consume",
+      "scenario": "pending grant cannot be consumed",
+      "method": "POST",
+      "path": "/v1/grants/grant-pending/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 403,
+        "error": "grant_not_approved"
+      },
+      "harness_preconditions": {
+        "grant_state": "proposed"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-04"]
+    },
+    {
+      "id": "WIRE-35",
+      "area": "audience",
+      "scenario": "consume rejects a different canonical audience",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://other.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 403,
+        "error": "wrong_audience"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-04"]
+    },
+    {
+      "id": "WIRE-36",
+      "area": "action",
+      "scenario": "consume rejects a different method or path",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/43"
+        }
+      },
+      "expected": {
+        "status": 403,
+        "error": "action_not_authorized"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-05"]
+    },
+    {
+      "id": "WIRE-37",
+      "area": "coordination",
+      "scenario": "child exchange rejects a wider frozen coordination scope",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write", "payments:admin"],
+        "dpop_jkt": "jkt-coordination-a",
+        "completion_ttl_seconds": 300,
+        "coordination": {
+          "id": "coordination-a",
+          "resource_id": "billing"
+        }
+      },
+      "expected": {
+        "status": 403,
+        "error": "scope_not_authorized"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-37"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.coordination.entries[0].grant_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.child_grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-02"]
+    },
+    {
+      "id": "WIRE-38",
+      "area": "standing",
+      "scenario": "multi-use request without profile is rejected",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "requested_use_limit": 2
+      },
+      "expected": {
+        "status": 403,
+        "error": "standing_profile_required"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-38"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-02"]
+    },
+    {
+      "id": "WIRE-39",
+      "area": "standing",
+      "scenario": "profile rejects a substituted fixed scope",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:admin"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "standing_profile_id": "profile-a"
+      },
+      "expected": {
+        "status": 403,
+        "error": "standing_profile_mismatch"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-39"
+      },
+      "harness_preconditions": {
+        "profile_mismatch_field": "scope"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-04"]
+    },
+    {
+      "id": "WIRE-40",
+      "area": "standing",
+      "scenario": "standing renewal requires explicit policy permission",
+      "method": "POST",
+      "path": "/v1/grants/grant-standing/renew",
+      "request": {},
+      "expected": {
+        "status": 403,
+        "error": "renewal_not_allowed"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-40"
+      },
+      "harness_preconditions": {
+        "renewal_policy": "disabled"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-06"]
+    },
+    {
+      "id": "WIRE-41",
+      "area": "composition",
+      "scenario": "standing reuse cannot combine with coordination",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "coordination": {
+          "id": "coordination-a",
+          "resource_id": "billing"
+        },
+        "standing_profile_id": "profile-a"
+      },
+      "expected": {
+        "status": 403,
+        "error": "cross_resource_reuse_forbidden"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-41"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-08"]
+    },
+    {
+      "id": "WIRE-42",
+      "area": "lookup",
+      "scenario": "unknown grant evidence has a stable not-found result",
+      "method": "GET",
+      "path": "/v1/grants/grant-unknown/evidence",
+      "request": {},
+      "expected": {
+        "status": 404,
+        "error": "grant_not_found"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-04"]
+    },
+    {
+      "id": "WIRE-43",
+      "area": "coordination",
+      "scenario": "unknown coordination cannot mint a child",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "coordination": {
+          "id": "coordination-unknown",
+          "resource_id": "billing"
+        }
+      },
+      "expected": {
+        "status": 404,
+        "error": "coordination_not_found"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-43"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.coordination.record_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.child_grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-09"]
+    },
+    {
+      "id": "WIRE-44",
+      "area": "consume",
+      "scenario": "second one-use consume never repeats the action",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 409,
+        "error": "grant_already_consumed"
+      },
+      "harness_preconditions": {
+        "retry": "after_consume"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-04"]
+    },
+    {
+      "id": "WIRE-45",
+      "area": "exchange",
+      "scenario": "one-use delegation cannot be exchanged twice",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300
+      },
+      "expected": {
+        "status": 409,
+        "error": "token_already_exchanged"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-45"
+      },
+      "harness_preconditions": {
+        "delegation_state": "already_exchanged"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-04"]
+    },
+    {
+      "id": "WIRE-46",
+      "area": "idempotency",
+      "scenario": "same exchange key with changed proposal collides",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/43",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300
+      },
+      "expected": {
+        "status": 409,
+        "error": "idempotency_key_reused"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-46"
+      },
+      "harness_preconditions": {
+        "existing_request": "different_canonical_body"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-02"]
+    },
+    {
+      "id": "WIRE-47",
+      "area": "coordination",
+      "scenario": "all-success finalization rejects partial execution",
+      "method": "POST",
+      "path": "/v1/coordinations/coordination-a/finalize",
+      "request": {
+        "event": "success",
+        "entry_ordinal": 1
+      },
+      "expected": {
+        "status": 409,
+        "error": "partial_execution"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-47"
+      },
+      "harness_preconditions": {
+        "reported_outcome": "partial_failure"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-07"]
+    },
+    {
+      "id": "WIRE-48",
+      "area": "standing",
+      "scenario": "bounded consume fails after final permitted use",
+      "method": "POST",
+      "path": "/v1/grants/grant-bounded/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 409,
+        "error": "reuse_limit_exhausted"
+      },
+      "harness_preconditions": {
+        "reuse_mode": "bounded_multi_use",
+        "remaining_uses_before": 0
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-03"]
+    },
+    {
+      "id": "WIRE-49",
+      "area": "coordination",
+      "scenario": "invalid coordination plan rejects wildcard resource leg",
+      "method": "POST",
+      "path": "/v1/coordinations",
+      "request": {
+        "entries": [
+          {
+            "ordinal": 1,
+            "resource_id": "billing",
+            "action": {
+              "method": "POST",
+              "path": "/payments/*",
+              "query": ""
+            },
+            "audience": "https://api.example.test",
+            "scope": ["payments:write"],
+            "dpop_jkt": "jkt-coordination-a",
+            "completion_ttl_seconds": 300
+          }
+        ],
+        "expires_at": "2030-01-01T00:00:00Z"
+      },
+      "expected": {
+        "status": 400,
+        "error": "coordination_invalid"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-49"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-01"]
+    },
+    {
+      "id": "WIRE-50",
+      "area": "coordination",
+      "scenario": "expired coordination parent blocks new child",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "coordination": {
+          "id": "coordination-expired",
+          "resource_id": "billing"
+        }
+      },
+      "expected": {
+        "status": 401,
+        "error": "coordination_expired"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-50"
+      },
+      "harness_preconditions": {
+        "parent_time_relation": "at_expiry"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-07"]
+    },
+    {
+      "id": "WIRE-51",
+      "area": "completion",
+      "scenario": "durability outage is the only retryable broker response",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/complete",
+      "request": {},
+      "expected": {
+        "status": 503,
+        "error": "temporarily_unavailable"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-51"
+      },
+      "harness_preconditions": {
+        "durability_state": "unavailable"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-07"]
+    },
+    {
+      "id": "WIRE-52",
+      "area": "graph",
+      "scenario": "graph rejects a missing dependency before authority resolution",
+      "method": "POST",
+      "path": "/v1/task-graphs",
+      "request": {
+        "nodes": [
+          {
+            "node_id": "node-a",
+            "depends_on": ["node-missing"],
+            "action": {
+              "method": "POST",
+              "path": "/payments/42",
+              "query": ""
+            },
+            "audience": "https://api.example.test",
+            "scope": ["payments:write"],
+            "dpop_jkt": "jkt-graph-a"
+          }
+        ],
+        "expires_at": "2030-01-01T00:00:00Z"
+      },
+      "expected": {
+        "status": 400,
+        "error": "graph_invalid"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-52"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-01"]
+    },
+    {
+      "id": "WIRE-53",
+      "area": "graph",
+      "scenario": "graph rejects a dependency cycle",
+      "method": "POST",
+      "path": "/v1/task-graphs",
+      "request": {
+        "nodes": [
+          {
+            "node_id": "node-a",
+            "depends_on": ["node-b"],
+            "action": {
+              "method": "POST",
+              "path": "/payments/42",
+              "query": ""
+            },
+            "audience": "https://api.example.test",
+            "scope": ["payments:write"],
+            "dpop_jkt": "jkt-graph-a"
+          },
+          {
+            "node_id": "node-b",
+            "depends_on": ["node-a"],
+            "action": {
+              "method": "POST",
+              "path": "/payments/43",
+              "query": ""
+            },
+            "audience": "https://api.example.test",
+            "scope": ["payments:write"],
+            "dpop_jkt": "jkt-graph-a"
+          }
+        ],
+        "expires_at": "2030-01-01T00:00:00Z"
+      },
+      "expected": {
+        "status": 400,
+        "error": "graph_cycle"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-53"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-01"]
+    },
+    {
+      "id": "WIRE-54",
+      "area": "graph",
+      "scenario": "graph approval at deadline is expired",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-expired/nodes/node-a/approve",
+      "request": {},
+      "expected": {
+        "status": 401,
+        "error": "graph_expired"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-54"
+      },
+      "harness_preconditions": {
+        "graph_time_relation": "at_expiry"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-08"]
+    },
+    {
+      "id": "WIRE-55",
+      "area": "graph",
+      "scenario": "cancelled graph rejects a later approval",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-cancelled/nodes/node-a/approve",
+      "request": {},
+      "expected": {
+        "status": 409,
+        "error": "graph_cancelled"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-55"
+      },
+      "harness_preconditions": {
+        "graph_state": "cancelled"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-08"]
+    },
+    {
+      "id": "WIRE-56",
+      "area": "graph",
+      "scenario": "terminal graph cannot be cancelled again",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-terminal/cancel",
+      "request": {},
+      "expected": {
+        "status": 409,
+        "error": "graph_terminal"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-56"
+      },
+      "harness_preconditions": {
+        "graph_state": "succeeded"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-07"]
+    },
+    {
+      "id": "WIRE-57",
+      "area": "graph",
+      "scenario": "graph idempotency key cannot name a changed definition",
+      "method": "POST",
+      "path": "/v1/task-graphs",
+      "request": {
+        "nodes": [
+          {
+            "node_id": "node-a",
+            "depends_on": [],
+            "action": {
+              "method": "POST",
+              "path": "/payments/43",
+              "query": ""
+            },
+            "audience": "https://api.example.test",
+            "scope": ["payments:write"],
+            "dpop_jkt": "jkt-graph-a"
+          }
+        ],
+        "expires_at": "2030-01-01T00:00:00Z"
+      },
+      "expected": {
+        "status": 409,
+        "error": "graph_idempotency_conflict"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-57"
+      },
+      "harness_preconditions": {
+        "existing_graph_definition": "different_hash"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-03"]
+    },
+    {
+      "id": "WIRE-58",
+      "area": "graph",
+      "scenario": "approval rejects an absent immutable node",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-a/nodes/node-missing/approve",
+      "request": {},
+      "expected": {
+        "status": 404,
+        "error": "node_not_found"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-58"
+      },
+      "harness_preconditions": {
+        "approval_identity_state": "trusted"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-11"]
+    },
+    {
+      "id": "WIRE-59",
+      "area": "graph",
+      "scenario": "approval blocks an unfinished dependency",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-a/nodes/node-b/approve",
+      "request": {},
+      "expected": {
+        "status": 409,
+        "error": "node_dependency_unsatisfied"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-59"
+      },
+      "harness_preconditions": {
+        "predecessor_state": "pending"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-02"]
+    },
+    {
+      "id": "WIRE-60",
+      "area": "graph",
+      "scenario": "terminal node cannot be approved twice",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-a/nodes/node-a/approve",
+      "request": {},
+      "expected": {
+        "status": 409,
+        "error": "node_terminal"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-60"
+      },
+      "harness_preconditions": {
+        "node_state": "succeeded"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-08"]
+    },
+    {
+      "id": "WIRE-61",
+      "area": "graph",
+      "scenario": "graph rejects a reused authority binding",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-a/nodes/node-b/approve",
+      "request": {},
+      "expected": {
+        "status": 409,
+        "error": "node_authority_reused"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-61"
+      },
+      "harness_preconditions": {
+        "authority_reference": "already_bound_to_node_a"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-04", "V1-GRAPH-05"]
+    },
+    {
+      "id": "WIRE-62",
+      "area": "graph",
+      "scenario": "forged node terminal event cannot create evidence",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-a/nodes/node-a/finalize",
+      "request": {
+        "event": "success",
+        "event_id": "event-forged-a"
+      },
+      "expected": {
+        "status": 403,
+        "error": "node_evidence_invalid"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-62"
+      },
+      "harness_preconditions": {
+        "resource_identity_state": "untrusted"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-09"]
+    },
+    {
+      "id": "WIRE-63",
+      "area": "queue",
+      "scenario": "queue enqueue requires receipt possession",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/completion-queue",
+      "request": {
+        "completion_event_id": "event-missing-receipt"
+      },
+      "expected": {
+        "status": 401,
+        "error": "queue_unauthenticated"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-63"
+      },
+      "harness_preconditions": {
+        "receipt_state": "missing"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.item_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.queue.evidence_mutation_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-01"]
+    },
+    {
+      "id": "WIRE-64",
+      "area": "queue",
+      "scenario": "invalid receipt changes no queue or evidence state",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/completion-queue",
+      "request": {
+        "completion_event_id": "event-invalid-receipt"
+      },
+      "expected": {
+        "status": 401,
+        "error": "invalid_completion_receipt"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-64"
+      },
+      "harness_preconditions": {
+        "receipt_state": "invalid_signature"
+      },
+      "surface": "broker_http",
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.item_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.queue.evidence_mutation_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-11"]
+    },
+    {
+      "id": "WIRE-65",
+      "area": "queue",
+      "scenario": "wrong receipt audience is rejected before enqueue",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/completion-queue",
+      "request": {
+        "completion_event_id": "event-wrong-audience"
+      },
+      "expected": {
+        "status": 403,
+        "error": "wrong_completion_audience"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-65"
+      },
+      "harness_preconditions": {
+        "receipt_audience": "https://other.example.test/v1/grants/grant-a/completion-queue"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.item_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.queue.evidence_mutation_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-01"]
+    },
+    {
+      "id": "WIRE-66",
+      "area": "queue",
+      "scenario": "queue proof must use the receipt completion JKT",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/completion-queue",
+      "request": {
+        "completion_event_id": "event-wrong-jkt"
+      },
+      "expected": {
+        "status": 401,
+        "error": "wrong_completion_dpop_key"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-66"
+      },
+      "harness_preconditions": {
+        "completion_dpop_state": "different_key"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.item_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.queue.evidence_mutation_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-01"]
+    },
+    {
+      "id": "WIRE-67",
+      "area": "queue",
+      "scenario": "expired receipt cannot enqueue or revive authority",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/completion-queue",
+      "request": {
+        "completion_event_id": "event-expired-receipt"
+      },
+      "expected": {
+        "status": 401,
+        "error": "completion_receipt_expired"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-67"
+      },
+      "harness_preconditions": {
+        "receipt_time_relation": "at_expiry"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.item_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.queue.evidence_mutation_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.grant.authority_revived",
+          "equals": false
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-08"]
+    },
+    {
+      "id": "WIRE-68",
+      "area": "queue",
+      "scenario": "changed payload under queue key is a conflict",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/completion-queue",
+      "request": {
+        "completion_event_id": "event-changed"
+      },
+      "expected": {
+        "status": 409,
+        "error": "queue_idempotency_conflict"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-68"
+      },
+      "harness_preconditions": {
+        "existing_queue_payload": "different_event"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-04"]
+    },
+    {
+      "id": "WIRE-69",
+      "area": "queue",
+      "scenario": "unknown local item never reaches broker",
+      "method": "LOCAL",
+      "path": "queue/requeue",
+      "request": {
+        "queue_id": "queue-missing"
+      },
+      "expected": {
+        "status": 404,
+        "error": "queue_item_not_found"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.broker_delivery_count",
+          "equals": 0
+        }
+      ],
+      "surface": "sdk_queue",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-09"]
+    },
+    {
+      "id": "WIRE-70",
+      "area": "queue",
+      "scenario": "terminal local item cannot be requeued",
+      "method": "LOCAL",
+      "path": "queue/requeue",
+      "request": {
+        "queue_id": "queue-accepted"
+      },
+      "expected": {
+        "status": 409,
+        "error": "queue_not_retryable"
+      },
+      "harness_preconditions": {
+        "queue_state": "broker_accepted"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.broker_delivery_count",
+          "equals": 0
+        }
+      ],
+      "surface": "sdk_queue",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-10"]
+    },
+    {
+      "id": "WIRE-71",
+      "area": "queue",
+      "scenario": "malformed terminal envelope is rejected before durable enqueue",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/completion-queue",
+      "request": {
+        "completion_event_id": "event-malformed",
+        "terminal_envelope": {}
+      },
+      "expected": {
+        "status": 400,
+        "error": "invalid_request"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-71"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.item_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-02"]
+    },
+    {
+      "id": "WIRE-72",
+      "area": "graph",
+      "scenario": "same graph rejects mixed canonical audiences in dependent nodes",
+      "method": "POST",
+      "path": "/v1/task-graphs",
+      "request": {
+        "nodes": [
+          {
+            "node_id": "node-a",
+            "depends_on": [],
+            "action": {
+              "method": "POST",
+              "path": "/payments/42",
+              "query": ""
+            },
+            "audience": "https://api.example.test",
+            "scope": ["payments:write"],
+            "dpop_jkt": "jkt-graph-a"
+          },
+          {
+            "node_id": "node-b",
+            "depends_on": ["node-a"],
+            "action": {
+              "method": "POST",
+              "path": "/entries/42",
+              "query": ""
+            },
+            "audience": "https://ledger.example.test",
+            "scope": ["ledger:write"],
+            "dpop_jkt": "jkt-graph-b"
+          }
+        ],
+        "expires_at": "2030-01-01T00:00:00Z"
+      },
+      "expected": {
+        "status": 400,
+        "error": "graph_invalid"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-72"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-10"]
+    },
+    {
+      "id": "WIRE-73",
+      "area": "coordination",
+      "scenario": "child cannot substitute coordination resource alias",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "coordination": {
+          "id": "coordination-a",
+          "resource_id": "billing-alias"
+        }
+      },
+      "expected": {
+        "status": 403,
+        "error": "coordination_not_authorizing"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-73"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-01"]
+    },
+    {
+      "id": "WIRE-74",
+      "area": "coordination",
+      "scenario": "child cannot dynamically add a coordination resource",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "coordination": {
+          "id": "coordination-a",
+          "resource_id": "risk"
+        }
+      },
+      "expected": {
+        "status": 403,
+        "error": "coordination_not_authorizing"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-74"
+      },
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-01"]
+    },
+    {
+      "id": "WIRE-75",
+      "area": "coordination",
+      "scenario": "successor child remains blocked before predecessor evidence",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/entries/42",
+          "query": ""
+        },
+        "audience": "https://ledger.example.test",
+        "scope": ["ledger:write"],
+        "dpop_jkt": "jkt-coordination-b",
+        "completion_ttl_seconds": 300,
+        "coordination": {
+          "id": "coordination-a",
+          "resource_id": "ledger"
+        }
+      },
+      "expected": {
+        "status": 403,
+        "error": "coordination_not_authorizing"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-75"
+      },
+      "harness_preconditions": {
+        "predecessor_state": "pending"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.coordination.entries[1].grant_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.child_grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-04"]
+    },
+    {
+      "id": "WIRE-76",
+      "area": "coordination",
+      "scenario": "parallel consume is deduplicated to one child transition",
+      "method": "POST",
+      "path": "/v1/grants/grant-coordination/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 409,
+        "error": "grant_already_consumed"
+      },
+      "harness_preconditions": {
+        "coordination_parallel_attempts": 2
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.coordination.child_consume_winner_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.child_consume_mutation_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.child_consume_loser_error",
+          "equals": "grant_already_consumed"
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-05"]
+    },
+    {
+      "id": "WIRE-77",
+      "area": "coordination",
+      "scenario": "forged outcome receipt cannot finalize a coordination",
+      "method": "POST",
+      "path": "/v1/coordinations/coordination-a/finalize",
+      "request": {
+        "event": "success",
+        "entry_ordinal": 1
+      },
+      "expected": {
+        "status": 409,
+        "error": "partial_execution"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-77"
+      },
+      "harness_preconditions": {
+        "resource_outcome_receipt_state": "forged",
+        "coordination_state_before": "active",
+        "entry_ordinal_1_state_before": "consumed"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.coordination.state",
+          "equals": "active"
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.entries[0].state",
+          "equals": "consumed"
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.evidence_mutation_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-06"]
+    },
+    {
+      "id": "WIRE-78",
+      "area": "standing",
+      "scenario": "retained v0 exchange rejects standing profile extension",
+      "method": "POST",
+      "path": "/exchange",
+      "request": {
+        "agentId": "agent-v0",
+        "subjectId": "subject-v0",
+        "subjectTokenId": "subject-token-id-a",
+        "resource": "https://api.example.test",
+        "action": "POST /payments/42",
+        "requestedScope": ["payments:write"],
+        "dpopThumbprint": "jkt-v0-a",
+        "expiresInSeconds": 60,
+        "idempotencyKey": "v0-reuse-extension",
+        "standing_profile_id": "profile-a"
+      },
+      "expected": {
+        "status": 400,
+        "error": "invalid_request"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-01"]
+    },
+    {
+      "id": "WIRE-79",
+      "area": "standing",
+      "scenario": "retained v0 exchange rejects requested multi-use limit extension",
+      "method": "POST",
+      "path": "/exchange",
+      "request": {
+        "agentId": "agent-v0",
+        "subjectId": "subject-v0",
+        "subjectTokenId": "subject-token-id-a",
+        "resource": "https://api.example.test",
+        "action": "POST /payments/42",
+        "requestedScope": ["payments:write"],
+        "dpopThumbprint": "jkt-v0-a",
+        "expiresInSeconds": 60,
+        "idempotencyKey": "v0-reuse-extension",
+        "requested_use_limit": 2
+      },
+      "expected": {
+        "status": 400,
+        "error": "invalid_request"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-01"]
+    },
+    {
+      "id": "WIRE-80",
+      "area": "standing",
+      "scenario": "replayed standing proof after restart is rejected",
+      "method": "POST",
+      "path": "/v1/grants/grant-standing/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 401,
+        "error": "dpop_proof_invalid"
+      },
+      "harness_preconditions": {
+        "binding_state": "replayed_after_restart",
+        "reuse_mode": "standing"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.standing.consume_mutation_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-05"]
+    },
+    {
+      "id": "WIRE-81",
+      "area": "standing",
+      "scenario": "standing evidence remains redacted after revocation",
+      "method": "POST",
+      "path": "/v1/grants/grant-standing-revoked/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 401,
+        "error": "grant_revoked"
+      },
+      "harness_preconditions": {
+        "reuse_mode": "standing",
+        "grant_state": "revoked"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.evidence.credential",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.evidence.private_key",
+          "absent": true
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-07"]
+    },
+    {
+      "id": "WIRE-82",
+      "area": "queue",
+      "scenario": "replayed completion proof changes no evidence",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/completion-queue",
+      "request": {
+        "completion_event_id": "event-replayed"
+      },
+      "expected": {
+        "status": 401,
+        "error": "dpop_proof_invalid"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-82"
+      },
+      "harness_preconditions": {
+        "receipt_state": "valid",
+        "completion_dpop_state": "replayed_jti"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.evidence_mutation_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-01"]
+    },
+    {
+      "id": "WIRE-83",
+      "area": "graph",
+      "scenario": "partial predecessor failure blocks downstream work",
+      "method": "POST",
+      "path": "/v1/task-graphs/graph-failure/nodes/node-b/approve",
+      "request": {},
+      "expected": {
+        "status": 409,
+        "error": "node_dependency_unsatisfied"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-83"
+      },
+      "harness_preconditions": {
+        "predecessor_state": "failed"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.graph.nodes[1].state",
+          "equals": "blocked"
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[1].grant",
+          "absent": true
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-08"]
+    },
+    {
+      "id": "WIRE-84",
+      "area": "queue",
+      "scenario": "queue observation exposes redacted telemetry and dead-letter metadata only",
+      "method": "GET",
+      "path": "/v1/grants/grant-a/completion-queue/broker-queue-safe",
+      "request": {},
+      "expected": {
+        "status": 200
+      },
+      "harness_preconditions": {
+        "broker_queue_state": "dead_lettered"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.queue.state",
+          "equals": "dead_lettered"
+        },
+        {
+          "target": "state",
+          "path": "$.queue.telemetry_contains_sensitive_material",
+          "equals": false
+        },
+        {
+          "target": "state",
+          "path": "$.queue.dead_letter_contains_sensitive_material",
+          "equals": false
+        },
+        {
+          "target": "state",
+          "path": "$.queue.observability.credential",
+          "absent": true
+        }
+      ],
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-03"]
+    },
+    {
+      "id": "WIRE-85",
+      "area": "graph",
+      "scenario": "approved node exchange attaches one distinct one-use grant",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-graph-a",
+        "completion_ttl_seconds": 300,
+        "graph": {
+          "id": "graph-a",
+          "node_id": "node-a"
+        }
+      },
+      "expected": {
+        "status": 201
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-85"
+      },
+      "harness_preconditions": {
+        "graph_node_state": "approved",
+        "node_authority_state": "resolved",
+        "graph_deadline": "2030-01-01T00:00:00Z",
+        "v0_grant_expiry_cap": "2029-12-31T23:59:00Z"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "approved"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.use_limit",
+          "equals": 1
+        },
+        {
+          "target": "response",
+          "path": "$.grant.expires_at",
+          "equals": "2029-12-31T23:59:00Z"
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_id",
+          "same_as": {
+            "target": "response",
+            "path": "$.grant.id"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].expires_at",
+          "same_as": {
+            "target": "response",
+            "path": "$.grant.expires_at"
+          }
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-12"]
+    },
+    {
+      "id": "WIRE-86",
+      "area": "graph",
+      "scenario": "graph-bound exchange rejects a substituted immutable action",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/43",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-graph-a",
+        "completion_ttl_seconds": 300,
+        "graph": {
+          "id": "graph-a",
+          "node_id": "node-a"
+        }
+      },
+      "expected": {
+        "status": 403,
+        "error": "action_not_authorized"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-86"
+      },
+      "harness_preconditions": {
+        "graph_node_state": "approved",
+        "graph_substitution_field": "action"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_id",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-12"]
+    },
+    {
+      "id": "WIRE-87",
+      "area": "queue",
+      "scenario": "expired local queue item cannot be requeued",
+      "method": "LOCAL",
+      "path": "queue/requeue",
+      "request": {
+        "queue_id": "queue-expired"
+      },
+      "expected": {
+        "status": 409,
+        "error": "queue_not_retryable"
+      },
+      "harness_preconditions": {
+        "queue_state": "expired"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.broker_delivery_count",
+          "equals": 0
+        }
+      ],
+      "surface": "sdk_queue",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-10"]
+    },
+    {
+      "id": "WIRE-88",
+      "area": "queue",
+      "scenario": "cancelled local queue item cannot be requeued",
+      "method": "LOCAL",
+      "path": "queue/requeue",
+      "request": {
+        "queue_id": "queue-cancelled"
+      },
+      "expected": {
+        "status": 409,
+        "error": "queue_not_retryable"
+      },
+      "harness_preconditions": {
+        "queue_state": "cancelled"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.broker_delivery_count",
+          "equals": 0
+        }
+      ],
+      "surface": "sdk_queue",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-10"]
+    },
+    {
+      "id": "WIRE-89",
+      "area": "queue",
+      "scenario": "scheduler dead-letters when the original completion key is unavailable",
+      "method": "LOCAL",
+      "path": "queue/scheduler-tick",
+      "request": {
+        "queue_id": "queue-missing-key"
+      },
+      "expected": {
+        "status": 409,
+        "error": "completion_key_unavailable"
+      },
+      "harness_preconditions": {
+        "queue_state": "queued",
+        "completion_key_reference": "unavailable"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.state",
+          "equals": "dead_letter"
+        },
+        {
+          "target": "state",
+          "path": "$.queue.broker_delivery_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.queue.last_code",
+          "equals": "completion_key_unavailable"
+        }
+      ],
+      "surface": "sdk_queue",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-13"]
+    },
+    {
+      "id": "WIRE-90",
+      "area": "dpop",
+      "scenario": "consume rejects a proof whose ath does not bind the presented capability",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 401,
+        "error": "dpop_proof_invalid"
+      },
+      "harness_preconditions": {
+        "binding_state": "ath_mismatch"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant.consume_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-05"]
+    },
+    {
+      "id": "WIRE-91",
+      "area": "standing",
+      "scenario": "standing profile rejects a substituted fixed action",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/43",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "standing_profile_id": "profile-a"
+      },
+      "expected": {
+        "status": 403,
+        "error": "standing_profile_mismatch"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-91"
+      },
+      "harness_preconditions": {
+        "profile_mismatch_field": "action"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-04"]
+    },
+    {
+      "id": "WIRE-92",
+      "area": "standing",
+      "scenario": "standing profile rejects a substituted fixed audience",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://other.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "standing_profile_id": "profile-a"
+      },
+      "expected": {
+        "status": 403,
+        "error": "standing_profile_mismatch"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-92"
+      },
+      "harness_preconditions": {
+        "profile_mismatch_field": "audience"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-04"]
+    },
+    {
+      "id": "WIRE-93",
+      "area": "standing",
+      "scenario": "standing profile rejects a substituted fixed DPoP JKT",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-other",
+        "completion_ttl_seconds": 300,
+        "standing_profile_id": "profile-a"
+      },
+      "expected": {
+        "status": 403,
+        "error": "standing_profile_mismatch"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-93"
+      },
+      "harness_preconditions": {
+        "profile_mismatch_field": "dpop_jkt"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-04"]
+    },
+    {
+      "id": "WIRE-94",
+      "area": "standing",
+      "scenario": "standing profile rejects a substituted completion TTL",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 120,
+        "standing_profile_id": "profile-a"
+      },
+      "expected": {
+        "status": 403,
+        "error": "standing_profile_mismatch"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-94"
+      },
+      "harness_preconditions": {
+        "profile_mismatch_field": "completion_ttl_seconds",
+        "profile_completion_ttl_seconds": 300
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-04"]
+    },
+    {
+      "id": "WIRE-95",
+      "area": "standing",
+      "scenario": "standing profile rejects a substituted fixed use limit",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "requested_use_limit": 3,
+        "standing_profile_id": "profile-a"
+      },
+      "expected": {
+        "status": 403,
+        "error": "standing_profile_mismatch"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-95"
+      },
+      "harness_preconditions": {
+        "profile_mismatch_field": "requested_use_limit",
+        "profile_use_limit": 2
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-04"]
+    },
+    {
+      "id": "WIRE-96",
+      "area": "standing",
+      "scenario": "standing consume rejects a proof token whose ath is mismatched",
+      "method": "POST",
+      "path": "/v1/grants/grant-standing/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 401,
+        "error": "dpop_proof_invalid"
+      },
+      "harness_preconditions": {
+        "reuse_mode": "standing",
+        "binding_state": "ath_mismatch"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant.consume_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-04"]
+    },
+    {
+      "id": "WIRE-97",
+      "area": "standing",
+      "scenario": "standing expiry preserves redacted evidence and blocks later consume",
+      "method": "POST",
+      "path": "/v1/grants/grant-standing-expired/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 401,
+        "error": "grant_expired"
+      },
+      "harness_preconditions": {
+        "reuse_mode": "standing",
+        "grant_state": "expired"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.evidence.credential",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.evidence.private_key",
+          "absent": true
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-07"]
+    },
+    {
+      "id": "WIRE-98",
+      "area": "coordination",
+      "scenario": "parallel trusted outcome receipts release one successor and append one evidence record",
+      "method": "POST",
+      "path": "/v1/coordinations/coordination-a/finalize",
+      "request": {
+        "event": "success",
+        "entry_ordinal": 1
+      },
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-98"
+      },
+      "harness_preconditions": {
+        "resource_outcome_receipt_state": "trusted",
+        "parallel_outcome_attempts": 2
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.coordination.plan_digest",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].credential",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.outcome_winner_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.successor_release_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.evidence_mutation_count",
+          "equals": 1
+        }
+      ],
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-05"]
+    },
+    {
+      "id": "WIRE-99",
+      "area": "coordination",
+      "scenario": "replayed trusted outcome returns the existing coordination result without a second release",
+      "method": "POST",
+      "path": "/v1/coordinations/coordination-a/finalize",
+      "request": {
+        "event": "success",
+        "entry_ordinal": 1
+      },
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-99"
+      },
+      "harness_preconditions": {
+        "resource_outcome_receipt_state": "replayed_identical",
+        "prior_success_evidence_exists": true
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.evidence.id",
+          "present": true
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].credential",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.successor_release_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.evidence_mutation_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-06"]
+    },
+    {
+      "id": "WIRE-100",
+      "area": "graph",
+      "scenario": "graph-bound exchange rejects a substituted immutable audience",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://other.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-graph-a",
+        "completion_ttl_seconds": 300,
+        "graph": {
+          "id": "graph-a",
+          "node_id": "node-a"
+        }
+      },
+      "expected": {
+        "status": 403,
+        "error": "wrong_audience"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-100"
+      },
+      "harness_preconditions": {
+        "graph_node_state": "approved",
+        "graph_substitution_field": "audience"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_id",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-12"]
+    },
+    {
+      "id": "WIRE-101",
+      "area": "graph",
+      "scenario": "graph-bound exchange rejects a widened immutable scope",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:admin"],
+        "dpop_jkt": "jkt-graph-a",
+        "completion_ttl_seconds": 300,
+        "graph": {
+          "id": "graph-a",
+          "node_id": "node-a"
+        }
+      },
+      "expected": {
+        "status": 403,
+        "error": "scope_not_authorized"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-101"
+      },
+      "harness_preconditions": {
+        "graph_node_state": "approved",
+        "graph_substitution_field": "scope"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_id",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-12"]
+    },
+    {
+      "id": "WIRE-102",
+      "area": "graph",
+      "scenario": "graph-bound exchange rejects a substituted immutable DPoP JKT",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-graph-other",
+        "completion_ttl_seconds": 300,
+        "graph": {
+          "id": "graph-a",
+          "node_id": "node-a"
+        }
+      },
+      "expected": {
+        "status": 400,
+        "error": "invalid_request"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-102"
+      },
+      "harness_preconditions": {
+        "graph_node_state": "approved",
+        "graph_substitution_field": "dpop_jkt"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_id",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-12"]
+    },
+    {
+      "id": "WIRE-103",
+      "area": "graph",
+      "scenario": "graph-bound exchange rejects a multi-use request",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-graph-a",
+        "completion_ttl_seconds": 300,
+        "requested_use_limit": 2,
+        "graph": {
+          "id": "graph-a",
+          "node_id": "node-a"
+        }
+      },
+      "expected": {
+        "status": 400,
+        "error": "invalid_request"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-103"
+      },
+      "harness_preconditions": {
+        "graph_node_state": "approved",
+        "graph_substitution_field": "requested_use_limit"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_id",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-12"]
+    },
+    {
+      "id": "WIRE-104",
+      "area": "graph",
+      "scenario": "graph selector cannot compose with a coordination selector",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-graph-a",
+        "completion_ttl_seconds": 300,
+        "graph": {
+          "id": "graph-a",
+          "node_id": "node-a"
+        },
+        "coordination": {
+          "id": "coordination-a",
+          "resource_id": "billing"
+        }
+      },
+      "expected": {
+        "status": 400,
+        "error": "invalid_request"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-104"
+      },
+      "harness_preconditions": {
+        "graph_node_state": "approved"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-13"]
+    },
+    {
+      "id": "WIRE-105",
+      "area": "graph",
+      "scenario": "graph selector cannot compose with a standing-profile selector",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-graph-a",
+        "completion_ttl_seconds": 300,
+        "graph": {
+          "id": "graph-a",
+          "node_id": "node-a"
+        },
+        "standing_profile_id": "profile-a"
+      },
+      "expected": {
+        "status": 400,
+        "error": "invalid_request"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-105"
+      },
+      "harness_preconditions": {
+        "graph_node_state": "approved"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-13"]
+    },
+    {
+      "id": "WIRE-106",
+      "area": "graph",
+      "scenario": "graph selector cannot compose with a completion-queue selector",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-graph-a",
+        "completion_ttl_seconds": 300,
+        "graph": {
+          "id": "graph-a",
+          "node_id": "node-a"
+        },
+        "completion_queue": {
+          "dpop_jkt": "jkt-completion-a"
+        }
+      },
+      "expected": {
+        "status": 400,
+        "error": "invalid_request"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-106"
+      },
+      "harness_preconditions": {
+        "graph_node_state": "approved"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-13"]
+    },
+    {
+      "id": "WIRE-107",
+      "area": "queue",
+      "scenario": "completion-queue selector cannot compose with a coordination selector",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "coordination": {
+          "id": "coordination-a",
+          "resource_id": "billing"
+        },
+        "completion_queue": {
+          "dpop_jkt": "jkt-completion-a"
+        }
+      },
+      "expected": {
+        "status": 400,
+        "error": "invalid_request"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-107"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-14"]
+    },
+    {
+      "id": "WIRE-108",
+      "area": "queue",
+      "scenario": "completion-queue selector cannot compose with a standing-profile selector",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-action-a",
+        "completion_ttl_seconds": 300,
+        "standing_profile_id": "profile-a",
+        "completion_queue": {
+          "dpop_jkt": "jkt-completion-a"
+        }
+      },
+      "expected": {
+        "status": 400,
+        "error": "invalid_request"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-108"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-14"]
+    },
+    {
+      "id": "WIRE-109",
+      "area": "time",
+      "scenario": "consume one second before expiry accepts the exact DPoP clock-skew boundary",
+      "method": "POST",
+      "path": "/v1/grants/grant-expiring/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 200
+      },
+      "harness_preconditions": {
+        "broker_time_relation": "one_second_before_expiry",
+        "dpop_iat_relation": "at_60_seconds",
+        "binding_state": "valid"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "consumed"
+        },
+        {
+          "target": "state",
+          "path": "$.grant.consume_count",
+          "equals": 1
+        }
+      ],
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-06"]
+    },
+    {
+      "id": "WIRE-110",
+      "area": "queue",
+      "scenario": "an exact queue enqueue retry returns the original accepted item without another enqueue or evidence mutation",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/completion-queue",
+      "request": {
+        "completion_event_id": "event-accepted-a"
+      },
+      "expected": {
+        "status": 202
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-09"
+      },
+      "harness_preconditions": {
+        "receipt_state": "valid",
+        "completion_dpop_state": "valid",
+        "retry": "exact"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.queue.state",
+          "equals": "accepted"
+        },
+        {
+          "target": "response",
+          "path": "$.queue.id",
+          "same_as": {
+            "target": "state",
+            "path": "$.original_response.queue.id"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.queue.item_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.queue.enqueue_mutation_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.queue.evidence_mutation_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-04"]
+    },
+    {
+      "id": "WIRE-111",
+      "area": "coordination",
+      "scenario": "cancellation finalizes a coordination with partial evidence and no remaining child authority",
+      "method": "POST",
+      "path": "/v1/coordinations/coordination-a/finalize",
+      "request": {
+        "event": "cancel",
+        "entry_ordinal": 1
+      },
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-111"
+      },
+      "harness_preconditions": {
+        "terminal_authority_state": "trusted",
+        "terminal_cause": "cancel"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.coordination.state",
+          "equals": "finalized"
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.evidence.id",
+          "present": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.partial_evidence_preserved",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.remaining_entries_disabled",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.unconsumed_child_grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-07"]
+    },
+    {
+      "id": "WIRE-112",
+      "area": "coordination",
+      "scenario": "expiry finalizes a coordination with partial evidence and no remaining child authority",
+      "method": "POST",
+      "path": "/v1/coordinations/coordination-a/finalize",
+      "request": {
+        "event": "expiry",
+        "entry_ordinal": 1
+      },
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-112"
+      },
+      "harness_preconditions": {
+        "terminal_authority_state": "trusted",
+        "terminal_cause": "expiry"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.coordination.state",
+          "equals": "finalized"
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.evidence.id",
+          "present": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.partial_evidence_preserved",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.remaining_entries_disabled",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.unconsumed_child_grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-07"]
+    },
+    {
+      "id": "WIRE-113",
+      "area": "coordination",
+      "scenario": "revocation finalizes a coordination with partial evidence and no remaining child authority",
+      "method": "POST",
+      "path": "/v1/coordinations/coordination-a/finalize",
+      "request": {
+        "event": "revoke",
+        "entry_ordinal": 1
+      },
+      "expected": {
+        "status": 200
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-113"
+      },
+      "harness_preconditions": {
+        "terminal_authority_state": "trusted",
+        "terminal_cause": "revoke"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.coordination.state",
+          "equals": "finalized"
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[0].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].capability",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.coordination.entries[1].credential",
+          "absent": true
+        },
+        {
+          "target": "response",
+          "path": "$.evidence.id",
+          "present": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.partial_evidence_preserved",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.remaining_entries_disabled",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.unconsumed_child_grant_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-07"]
+    },
+    {
+      "id": "WIRE-114",
+      "area": "standing",
+      "scenario": "two final-use consumes have one winner and one bounded-limit loser",
+      "method": "POST",
+      "path": "/v1/grants/grant-bounded/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 200
+      },
+      "harness_preconditions": {
+        "reuse_mode": "bounded_multi_use",
+        "remaining_uses_before": 1,
+        "parallel_consume_attempts": 2
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "approved"
+        },
+        {
+          "target": "state",
+          "path": "$.standing.winner_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.standing.remaining_successful_consumes",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.standing.loser_error",
+          "equals": "reuse_limit_exhausted"
+        },
+        {
+          "target": "state",
+          "path": "$.standing.consume_mutation_count",
+          "equals": 1
+        }
+      ],
+      "requirement_id": "V1-26",
+      "covers": ["V1-REUSE-03"]
+    },
+    {
+      "id": "WIRE-115",
+      "area": "time",
+      "scenario": "consume rejects a stale otherwise-valid DPoP proof outside the 60-second clock boundary",
+      "method": "POST",
+      "path": "/v1/grants/grant-a/consume",
+      "request": {
+        "target": {
+          "method": "POST",
+          "url": "https://api.example.test/payments/42"
+        }
+      },
+      "expected": {
+        "status": 401,
+        "error": "dpop_proof_invalid"
+      },
+      "harness_preconditions": {
+        "binding_state": "valid",
+        "dpop_iat_relation": "outside_60_seconds"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.grant.consume_count",
+          "equals": 0
+        }
+      ],
+      "requirement_id": "V1-25",
+      "covers": ["V1-WIRE-06"]
+    },
+    {
+      "id": "WIRE-116",
+      "area": "queue",
+      "scenario": "an authorized live dead letter requeues its original immutable local item",
+      "method": "LOCAL",
+      "path": "queue/requeue",
+      "request": {
+        "queue_id": "queue-dead-letter"
+      },
+      "expected": {
+        "status": 200
+      },
+      "harness_preconditions": {
+        "queue_state": "dead_letter",
+        "operator_authorization": "valid",
+        "receipt_time_relation": "before_expiry",
+        "original_completion_key_state": "available",
+        "original_payload_state": "immutable_available"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.queue.state",
+          "equals": "queued"
+        },
+        {
+          "target": "state",
+          "path": "$.queue.id",
+          "same_as": {
+            "target": "state",
+            "path": "$.original_queue.id"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.queue.completion_event_id",
+          "same_as": {
+            "target": "state",
+            "path": "$.original_queue.completion_event_id"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.queue.payload_digest",
+          "same_as": {
+            "target": "state",
+            "path": "$.original_queue.payload_digest"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.queue.audit_trail_preserves_original",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.queue.requeue_transition_recorded",
+          "equals": true
+        },
+        {
+          "target": "state",
+          "path": "$.queue.receipt_mint_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.queue.broker_delivery_count",
+          "equals": 0
+        }
+      ],
+      "surface": "sdk_queue",
+      "requirement_id": "V1-24",
+      "covers": ["V1-QUEUE-10"]
+    },
+    {
+      "id": "WIRE-117",
+      "area": "graph",
+      "scenario": "graph creation rejects an empty node set before record or authority creation",
+      "method": "POST",
+      "path": "/v1/task-graphs",
+      "request": {
+        "nodes": [],
+        "expires_at": "2030-01-01T00:00:00Z"
+      },
+      "expected": {
+        "status": 400,
+        "error": "graph_invalid"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-117"
+      },
+      "harness_preconditions": {
+        "invalid_graph_reason": "empty_nodes"
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.graph.record_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.graph.grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-01"]
+    },
+    {
+      "id": "WIRE-118",
+      "area": "coordination",
+      "scenario": "coordination creation rejects a duplicate ordinal before record creation",
+      "method": "POST",
+      "path": "/v1/coordinations",
+      "request": {
+        "entries": [
+          {
+            "ordinal": 1,
+            "resource_id": "billing",
+            "action": {
+              "method": "POST",
+              "path": "/payments/42",
+              "query": ""
+            },
+            "audience": "https://api.example.test",
+            "scope": ["payments:write"],
+            "dpop_jkt": "jkt-coordination-a",
+            "completion_ttl_seconds": 300
+          },
+          {
+            "ordinal": 1,
+            "resource_id": "ledger",
+            "action": {
+              "method": "POST",
+              "path": "/entries/42",
+              "query": ""
+            },
+            "audience": "https://ledger.example.test",
+            "scope": ["ledger:write"],
+            "dpop_jkt": "jkt-coordination-b",
+            "completion_ttl_seconds": 300
+          }
+        ],
+        "expires_at": "2030-01-01T00:00:00Z"
+      },
+      "expected": {
+        "status": 400,
+        "error": "coordination_invalid"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-118"
+      },
+      "harness_preconditions": {
+        "duplicate_ordinal": true
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.coordination.record_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.child_grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-01"]
+    },
+    {
+      "id": "WIRE-119",
+      "area": "coordination",
+      "scenario": "ready first coordination entry mints one exact child grant bounded by parent and v0 expiry",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-coordination-a",
+        "completion_ttl_seconds": 300,
+        "coordination": {
+          "id": "coordination-a",
+          "resource_id": "billing"
+        }
+      },
+      "expected": {
+        "status": 201
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-119"
+      },
+      "harness_preconditions": {
+        "parent_state": "approved",
+        "entry_ordinal": 1,
+        "entry_state": "ready",
+        "trusted_child_authority_state": "resolved",
+        "parent_deadline": "2030-01-01T00:00:00Z",
+        "v0_grant_expiry_cap": "2029-12-31T23:59:00Z"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "approved"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.action",
+          "equals": {
+            "method": "POST",
+            "path": "/payments/42",
+            "query": ""
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.grant.audience",
+          "equals": "https://api.example.test"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.scope",
+          "equals": ["payments:write"]
+        },
+        {
+          "target": "response",
+          "path": "$.grant.dpop_jkt",
+          "equals": "jkt-coordination-a"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.use_limit",
+          "equals": 1
+        },
+        {
+          "target": "response",
+          "path": "$.grant.expires_at",
+          "equals": "2029-12-31T23:59:00Z"
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "present": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.entries[0].grant_id",
+          "same_as": {
+            "target": "response",
+            "path": "$.grant.id"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.entries[0].grant_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.entries[0].expires_at",
+          "same_as": {
+            "target": "response",
+            "path": "$.grant.expires_at"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.entries[1].grant_id",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.parent_capability",
+          "absent": true
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-10"]
+    },
+    {
+      "id": "WIRE-120",
+      "area": "coordination",
+      "scenario": "ready coordination child caps expiry at an earlier parent deadline",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-coordination-a",
+        "completion_ttl_seconds": 300,
+        "coordination": {
+          "id": "coordination-parent-cap",
+          "resource_id": "billing"
+        }
+      },
+      "expected": {
+        "status": 201
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-120"
+      },
+      "harness_preconditions": {
+        "parent_state": "approved",
+        "entry_ordinal": 1,
+        "entry_state": "ready",
+        "trusted_child_authority_state": "resolved",
+        "parent_deadline": "2029-12-31T23:58:00Z",
+        "v0_grant_expiry_cap": "2030-01-01T00:00:00Z"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "approved"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.action",
+          "equals": {
+            "method": "POST",
+            "path": "/payments/42",
+            "query": ""
+          }
+        },
+        {
+          "target": "response",
+          "path": "$.grant.audience",
+          "equals": "https://api.example.test"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.scope",
+          "equals": ["payments:write"]
+        },
+        {
+          "target": "response",
+          "path": "$.grant.dpop_jkt",
+          "equals": "jkt-coordination-a"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.use_limit",
+          "equals": 1
+        },
+        {
+          "target": "response",
+          "path": "$.grant.expires_at",
+          "equals": "2029-12-31T23:58:00Z"
+        },
+        {
+          "target": "response",
+          "path": "$.capability",
+          "present": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.entries[0].grant_id",
+          "same_as": {
+            "target": "response",
+            "path": "$.grant.id"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.entries[0].grant_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.entries[0].expires_at",
+          "same_as": {
+            "target": "response",
+            "path": "$.grant.expires_at"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.entries[1].grant_id",
+          "absent": true
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.parent_capability",
+          "absent": true
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-10"]
+    },
+    {
+      "id": "WIRE-121",
+      "area": "graph",
+      "scenario": "approved graph node exchange caps its one-use grant at an earlier graph deadline",
+      "method": "POST",
+      "path": "/v1/grants/exchange",
+      "request": {
+        "action": {
+          "method": "POST",
+          "path": "/payments/42",
+          "query": ""
+        },
+        "audience": "https://api.example.test",
+        "scope": ["payments:write"],
+        "dpop_jkt": "jkt-graph-a",
+        "completion_ttl_seconds": 300,
+        "graph": {
+          "id": "graph-parent-cap",
+          "node_id": "node-a"
+        }
+      },
+      "expected": {
+        "status": 201
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-121"
+      },
+      "harness_preconditions": {
+        "graph_node_state": "approved",
+        "node_authority_state": "resolved",
+        "graph_deadline": "2029-12-31T23:58:00Z",
+        "v0_grant_expiry_cap": "2030-01-01T00:00:00Z"
+      },
+      "assertions": [
+        {
+          "target": "response",
+          "path": "$.grant.status",
+          "equals": "approved"
+        },
+        {
+          "target": "response",
+          "path": "$.grant.use_limit",
+          "equals": 1
+        },
+        {
+          "target": "response",
+          "path": "$.grant.expires_at",
+          "equals": "2029-12-31T23:58:00Z"
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_id",
+          "same_as": {
+            "target": "response",
+            "path": "$.grant.id"
+          }
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].grant_count",
+          "equals": 1
+        },
+        {
+          "target": "state",
+          "path": "$.graph.nodes[0].expires_at",
+          "same_as": {
+            "target": "response",
+            "path": "$.grant.expires_at"
+          }
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-22",
+      "covers": ["V1-GRAPH-12"]
+    },
+    {
+      "id": "WIRE-122",
+      "area": "coordination",
+      "scenario": "coordination creation rejects a duplicate resource identity with distinct contiguous ordinals",
+      "method": "POST",
+      "path": "/v1/coordinations",
+      "request": {
+        "entries": [
+          {
+            "ordinal": 1,
+            "resource_id": "billing",
+            "action": {
+              "method": "POST",
+              "path": "/payments/42",
+              "query": ""
+            },
+            "audience": "https://api.example.test",
+            "scope": ["payments:write"],
+            "dpop_jkt": "jkt-coordination-a",
+            "completion_ttl_seconds": 300
+          },
+          {
+            "ordinal": 2,
+            "resource_id": "billing",
+            "action": {
+              "method": "POST",
+              "path": "/payments/43",
+              "query": ""
+            },
+            "audience": "https://api.example.test",
+            "scope": ["payments:write"],
+            "dpop_jkt": "jkt-coordination-b",
+            "completion_ttl_seconds": 300
+          }
+        ],
+        "expires_at": "2030-01-01T00:00:00Z"
+      },
+      "expected": {
+        "status": 400,
+        "error": "coordination_invalid"
+      },
+      "headers": {
+        "Idempotency-Key": "case-WIRE-122"
+      },
+      "harness_preconditions": {
+        "duplicate_resource_id": true
+      },
+      "assertions": [
+        {
+          "target": "state",
+          "path": "$.coordination.record_count",
+          "equals": 0
+        },
+        {
+          "target": "state",
+          "path": "$.coordination.child_grant_count",
+          "equals": 0
+        }
+      ],
+      "surface": "broker_http",
+      "requirement_id": "V1-23",
+      "covers": ["V1-COORD-01"]
+    }
+  ]
+}

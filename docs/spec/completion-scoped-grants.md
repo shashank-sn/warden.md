@@ -7,6 +7,9 @@ Security considerations: see the [threat model](../security/threat-model.md).
 ## Changelog
 
 - \`v0\` (2026-09-13): first interoperable reference contract for one-use, completion-scoped grants.
+- \`v1\` amendment index (2026-09-13): bounded design contracts and planned conformance
+  material for graphs, coordination, queues, portability, and reuse. The current reference runtime
+  remains a v0 implementation.
 
 ## 1. Overview
 
@@ -141,15 +144,32 @@ credentials, DPoP proofs, or raw subject assertions in evidence or logs.
 5. The SDK calls \`complete\` in a \`finally\` block. The broker records \`revoked\`, creates evidence,
    and retries any revocation event delivery. If that call never arrives, the TTL alarm does it.
 
-## 8. Prior art and v1 questions
+## 8. Prior art and v1 amendment index
 
 This profile reuses schemen-gate's policy-gateway shape, executor's custody boundary, and
 ghostget's proxy ergonomics. It extends them with a normative completion state machine, evidence
 record, and mandatory one-use DPoP-bound credential.
 
-The intentionally deferred v1 questions are tracked as [multi-step task graphs](https://github.com/shashank-sn/warden.md/issues/22),
-[cross-resource grants](https://github.com/shashank-sn/warden.md/issues/23),
-[durable completion queues](https://github.com/shashank-sn/warden.md/issues/24),
-[non-TypeScript SDK interoperability](https://github.com/shashank-sn/warden.md/issues/25), and
-[bounded multi-use and standing grants](https://github.com/shashank-sn/warden.md/issues/26). They
-are not valid reasons to weaken the v0 rules above.
+v0 remains one action, one audience, one DPoP binding, and one successful consume. A v1-capable
+broker's v0 endpoints, claims, and policy surface MUST reject or report unsupported any v1 extension
+field; they MUST NOT silently ignore one or widen v0 authority. The current TypeScript reference
+exposes v0 only and does not implement or advertise a v1 extension surface. The amendments below
+define separate, versioned v1 profiles and endpoints.
+
+- [Task graphs](./task-graphs.md) define immutable dependency metadata and node-by-node grants;
+  they do not define a workflow engine or graph-wide credential.
+- [Cross-resource coordination](./cross-resource-coordination.md) defines a non-authorizing parent
+  plan with independently bound one-use resource legs.
+- [Durable completion queues](./durable-completion-queues.md) define a broker-audience completion
+  receipt and late-delivery rules without reusing a protected-action credential.
+- [Broker SDK wire v1](./broker-sdk-wire-v1.md) freezes the portable HTTP, error, DPoP, clock, and
+  key-storage contract together with its fixture corpus.
+- [Bounded reuse and standing grants](./bounded-reuse-standing-grants.md) define explicit opt-in
+  profiles that cannot downgrade the v0 one-use invariant.
+
+The associated work remains tracked as [#22](https://github.com/shashank-sn/warden.md/issues/22),
+[#23](https://github.com/shashank-sn/warden.md/issues/23),
+[#24](https://github.com/shashank-sn/warden.md/issues/24),
+[#25](https://github.com/shashank-sn/warden.md/issues/25), and
+[#26](https://github.com/shashank-sn/warden.md/issues/26). The amendments are not valid reasons to
+weaken the v0 rules above.

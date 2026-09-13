@@ -40,6 +40,17 @@ goal: authority that dies when the task does.
 - [client sdk and resource-side middleware](https://github.com/shashank-sn/warden.md/issues/19)
 - [threat model and security review](https://github.com/shashank-sn/warden.md/issues/20)
 
+## v1 contract amendments
+
+The following follow-on work is specified as bounded contracts and planned conformance material.
+It does not turn the current v0 reference into a workflow engine or a reusable-authority runtime.
+
+- [multi-step task graphs without standing authority](https://github.com/shashank-sn/warden.md/issues/22)
+- [cross-resource completion-scoped grants](https://github.com/shashank-sn/warden.md/issues/23)
+- [durable completion queues for offline clients](https://github.com/shashank-sn/warden.md/issues/24)
+- [non-TypeScript SDK interoperability](https://github.com/shashank-sn/warden.md/issues/25)
+- [bounded multi-use and standing grant semantics](https://github.com/shashank-sn/warden.md/issues/26)
+
 ## shipping order
 
 foundation first. then check and service in parallel. broker last, because it builds on both the spec and the patterns the service proves out. dependencies between individual issues are listed in each issue.
